@@ -1,0 +1,7 @@
+{
+  "name": "ECLIN - Portal da Qualidade",
+  "description": "Sistema integrado de gestão de documentos, controle de qualidade e fluxos de assinatura para a ECLIN.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
