@@ -12,9 +12,19 @@
     <meta name="apple-mobile-web-app-title" content="ECLIN Qualidade">
     <meta name="theme-color" content="#004aad">
     
+    <link rel="manifest" href="./manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    
+    <!-- SHIM PARA PROCESS.ENV (Fundamental para evitar erro de referência) -->
+    <script>
+      // Garante que o objeto process existe antes de qualquer outro script
+      window.process = window.process || { env: {} };
+      // Se estiver no Vercel, o sistema tentará injetar, mas para garantir:
+      if (!window.process.env) window.process.env = {};
+    </script>
+
     <script>
       tailwind.config = {
         theme: {
@@ -38,19 +48,23 @@
             background-color: #f8fbff;
             -webkit-tap-highlight-color: transparent;
         }
-        /* Ajuste para notch de iPhones novos */
         nav {
             padding-top: env(safe-area-inset-top);
         }
         .brand-gradient {
             background: linear-gradient(135deg, #004aad 0%, #00c2ff 100%);
         }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #00c2ff;
-          border-radius: 10px;
+        #error-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: white;
+            z-index: 9999;
+            padding: 2rem;
+            text-align: center;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
     </style>
 <script type="importmap">
@@ -66,5 +80,23 @@
 </head>
 <body>
     <div id="root"></div>
+    <div id="error-overlay">
+        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+        <h1 class="text-xl font-bold mb-2">Ops! Algo deu errado no carregamento.</h1>
+        <p class="text-slate-500 text-sm max-w-xs mb-6">Certifique-se de que as variáveis de ambiente (API_KEY) estão configuradas no Vercel.</p>
+        <button onclick="window.location.reload()" class="bg-brand-primary text-white px-6 py-2 rounded-lg text-xs font-bold uppercase">Tentar Novamente</button>
+    </div>
+
+    <script type="module">
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error('Erro detectado:', msg);
+            // Se houver erro crítico de referência, mostra o aviso
+            if (msg.includes('process is not defined') || msg.includes('ReferenceError')) {
+                document.getElementById('error-overlay').style.display = 'flex';
+            }
+            return false;
+        };
+    </script>
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>

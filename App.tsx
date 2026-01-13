@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, QualityDocument } from './types';
-import AwarenessCarousel from './components/AwarenessCarousel';
-import QualityAssistant from './components/QualityAssistant';
-import Logo from './components/Logo';
-import { CONFIG } from './config';
+import { User, QualityDocument } from './types.ts';
+import AwarenessCarousel from './components/AwarenessCarousel.tsx';
+import QualityAssistant from './components/QualityAssistant.tsx';
+import Logo from './components/Logo.tsx';
+import { CONFIG } from './config.ts';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -27,7 +27,7 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
+    if (email) {
       setUser({ email, name: email.split('@')[0], role: 'user' });
       setActiveTab('upload');
     }
@@ -293,7 +293,7 @@ const App: React.FC = () => {
       <footer className="bg-white border-t border-slate-100 py-16 mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-10">
-            <Logo className="h-8" />
+            <Logo />
             <div className="text-center md:text-right">
               <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">© 2026 {CONFIG.portalTitle} {CONFIG.brandName}.</p>
               <div className="flex justify-center md:justify-end gap-6 text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">
