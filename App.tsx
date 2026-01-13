@@ -4,6 +4,7 @@ import { User, QualityDocument } from './types';
 import AwarenessCarousel from './components/AwarenessCarousel';
 import QualityAssistant from './components/QualityAssistant';
 import Logo from './components/Logo';
+import { CONFIG } from './config';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -11,9 +12,9 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [documents, setDocuments] = useState<QualityDocument[]>([
-    { id: '1', title: 'Manual de Qualidade ECLIN ONA v.1', type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01' },
+    { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01' },
     { id: '2', title: 'Protocolo de Identificação do Paciente', type: 'pdf', status: 'published', uploader: 'Comitê Gestor', uploadDate: '2024-03-15' },
-    { id: '3', title: 'Política de Descarte de Resíduos ECLIN', type: 'pdf', status: 'published', uploader: 'Engenharia Clínica', uploadDate: '2024-03-20' },
+    { id: '3', title: `Política de Descarte de Resíduos ${CONFIG.brandName}`, type: 'pdf', status: 'published', uploader: 'Engenharia Clínica', uploadDate: '2024-03-20' },
   ]);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -46,17 +47,16 @@ const App: React.FC = () => {
       title: file.name,
       type: type,
       status: type === 'docx' ? 'pending' : 'published',
-      uploader: user?.name || 'Equipe ECLIN',
+      uploader: user?.name || `Equipe ${CONFIG.brandName}`,
       uploadDate: new Date().toISOString().split('T')[0]
     };
 
     setDocuments(prev => [newDoc, ...prev]);
-    setNotification(`Sucesso! Notificação enviada para engenharia.cd1@gmail.com sobre o arquivo: ${file.name}`);
+    setNotification(`Sucesso! Notificação enviada para ${CONFIG.notificationEmail} sobre o arquivo: ${file.name}`);
   };
 
   return (
     <div className="min-h-screen bg-brand-light/40 text-slate-900 font-sans">
-      {/* Notificação Toast */}
       {notification && (
         <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-right-10 duration-300">
           <div className="bg-brand-primary text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3 border-l-4 border-brand-secondary">
@@ -66,7 +66,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Cabeçalho */}
       <nav className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
@@ -77,20 +76,20 @@ const App: React.FC = () => {
                   onClick={() => setActiveTab('public')}
                   className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'public' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                 >
-                  Acervo
+                  {CONFIG.tabs.public}
                 </button>
                 <button 
                   onClick={() => setActiveTab('signed')}
                   className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'signed' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                 >
-                  Homologados
+                  {CONFIG.tabs.signed}
                 </button>
                 {user && (
                   <button 
                     onClick={() => setActiveTab('upload')}
                     className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'upload' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                   >
-                    Submeter
+                    {CONFIG.tabs.upload}
                   </button>
                 )}
               </div>
@@ -104,7 +103,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="text-left hidden sm:block">
                     <p className="text-[10px] font-black text-slate-800 uppercase leading-none">{user.name}</p>
-                    <p className="text-[8px] text-brand-secondary font-bold uppercase tracking-widest">Equipe ECLIN</p>
+                    <p className="text-[8px] text-brand-secondary font-bold uppercase tracking-widest">Equipe {CONFIG.brandName}</p>
                   </div>
                   <button 
                     onClick={handleLogout}
@@ -128,8 +127,6 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          
-          {/* Área Principal */}
           <div className="lg:col-span-8 space-y-10">
             <AwarenessCarousel />
 
@@ -137,7 +134,7 @@ const App: React.FC = () => {
               <div className="space-y-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                   <div>
-                    <h2 className="text-3xl font-black text-brand-dark tracking-tight">Qualidade ECLIN</h2>
+                    <h2 className="text-3xl font-black text-brand-dark tracking-tight">Qualidade {CONFIG.brandName}</h2>
                     <p className="text-sm text-slate-500 font-medium">Controle de normas e protocolos assistenciais.</p>
                   </div>
                   <button 
@@ -163,9 +160,6 @@ const App: React.FC = () => {
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{doc.uploadDate}</p>
                         </div>
                       </div>
-                      <button className="text-slate-300 group-hover:text-brand-secondary mt-1">
-                        <i className="fas fa-external-link-alt text-sm"></i>
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -176,7 +170,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-2xl font-black text-brand-dark">Protocolo de Arquivamento</h3>
-                    <p className="text-slate-500 max-w-sm mx-auto font-medium text-sm">Envie PDFs de fluxogramas e manuais prontos para publicação no portal público ECLIN.</p>
+                    <p className="text-slate-500 max-w-sm mx-auto font-medium text-sm">Envie PDFs prontos para publicação no portal público {CONFIG.brandName}.</p>
                   </div>
                   <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'pdf')} className="hidden" id="pdf-upload" />
                   <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
@@ -193,23 +187,17 @@ const App: React.FC = () => {
                     <i className="fas fa-signature text-2xl"></i>
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Fluxo de Assinatura ECLIN</h2>
+                    <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Fluxo de Assinatura {CONFIG.brandName}</h2>
                     <p className="text-xs font-bold text-brand-secondary uppercase tracking-widest mt-1">Análise Crítica e Validação</p>
                   </div>
                 </div>
 
                 <div className="p-6 bg-brand-light rounded-2xl border border-brand-primary/10 text-brand-primary text-xs font-bold leading-relaxed flex gap-4">
                   <i className="fas fa-robot text-lg"></i>
-                  <p>Atenção: Documentos em <strong>.docx (Word)</strong> submetidos nesta área ativam um gatilho de revisão prioritária para a Engenharia ECLIN em engenharia.cd1@gmail.com.</p>
+                  <p>Atenção: Documentos em <strong>.docx (Word)</strong> ativam o gatilho de revisão prioritária enviada para {CONFIG.notificationEmail}.</p>
                 </div>
 
                 <div className="border-4 border-dashed border-slate-100 rounded-[2rem] p-16 text-center space-y-6 hover:border-brand-primary/50 transition-all bg-slate-50/50">
-                  <div className="w-20 h-20 bg-white rounded-[2rem] shadow-sm flex items-center justify-center mx-auto text-brand-primary/20">
-                    <i className="fas fa-file-word text-4xl"></i>
-                  </div>
-                  <div className="space-y-1 text-sm font-black text-slate-700 uppercase tracking-widest">
-                    <p>Submeter Novo Documento para Assinatura</p>
-                  </div>
                   <input type="file" accept=".docx" onChange={(e) => handleFileUpload(e, 'docx')} className="hidden" id="docx-upload" />
                   <label htmlFor="docx-upload" className="inline-block px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10">
                     Procurar Word (.docx)
@@ -237,12 +225,9 @@ const App: React.FC = () => {
                         </div>
                         <div>
                           <p className="font-black text-slate-800 text-sm group-hover:text-brand-primary transition-colors">{doc.title}</p>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Selo de Qualidade ECLIN • {doc.uploadDate}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Selo {CONFIG.brandName} • {doc.uploadDate}</p>
                         </div>
                       </div>
-                      <button className="px-5 py-2 text-[10px] font-black uppercase tracking-widest text-brand-primary border border-brand-primary/20 rounded-lg hover:bg-brand-primary hover:text-white transition-all">
-                        Validar Original
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -250,35 +235,21 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Barra Lateral */}
           <div className="lg:col-span-4 space-y-10">
-            
-            {/* Caixa de Login */}
             {!user && (
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
                 <h3 className="text-xl font-black text-brand-dark mb-8 flex items-center gap-3 uppercase tracking-tighter">
                   <div className="w-2 h-6 bg-brand-secondary rounded-full"></div>
-                  Portal ECLIN
+                  Portal {CONFIG.brandName}
                 </h3>
                 <form onSubmit={handleLogin} className="space-y-6">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Identificação Corporativa</label>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">ID Corporativo</label>
                     <input 
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="equipe@eclin.com.br"
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all text-xs font-bold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Chave de Segurança</label>
-                    <input 
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder={`colaborador@${CONFIG.brandName.toLowerCase()}.com.br`}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all text-xs font-bold"
                       required
                     />
@@ -290,41 +261,27 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Assistente de IA */}
             <div className="bg-brand-dark rounded-[2.5rem] p-10 text-white space-y-8 shadow-2xl relative overflow-hidden group">
-              <div className="absolute -top-10 -right-10 w-40 h-40 brand-gradient opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-1000"></div>
               <div className="relative">
                 <h3 className="text-xl font-black flex items-center gap-3 uppercase tracking-tight">
                   <i className="fas fa-brain text-brand-secondary"></i>
-                  IA da ECLIN
+                  IA da {CONFIG.brandName}
                 </h3>
                 <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-[0.3em] mt-2">Consultor ONA Integrado</p>
               </div>
               <QualityAssistant />
             </div>
 
-            {/* Indicadores ONA */}
             <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Métricas ECLIN 2026</h4>
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Métricas {CONFIG.brandName} 2026</h4>
               <div className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex justify-between items-end">
-                    <span className="text-xs font-black uppercase text-brand-dark">Prontuário Digital</span>
+                    <span className="text-xs font-black uppercase text-brand-dark">Conformidade</span>
                     <span className="text-sm font-black text-brand-primary">94%</span>
                   </div>
                   <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
                     <div className="h-full bg-brand-primary w-[94%] rounded-full"></div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-brand-light/50 p-4 rounded-2xl border border-brand-primary/5 text-center">
-                    <p className="text-2xl font-black text-brand-primary">{documents.length}</p>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Acervo ONA</p>
-                  </div>
-                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-center">
-                    <p className="text-2xl font-black text-emerald-600">42</p>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Aprovados</p>
                   </div>
                 </div>
               </div>
@@ -333,17 +290,15 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Rodapé */}
       <footer className="bg-white border-t border-slate-100 py-16 mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-10">
             <Logo className="h-8" />
             <div className="text-center md:text-right">
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">© 2026 Portal da Qualidade ECLIN Gestão Hospitalar.</p>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">© 2026 {CONFIG.portalTitle} {CONFIG.brandName}.</p>
               <div className="flex justify-center md:justify-end gap-6 text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">
-                <a href="#" className="hover:text-brand-secondary transition-colors">Normas</a>
-                <a href="#" className="hover:text-brand-secondary transition-colors">Conformidade</a>
-                <a href="#" className="hover:text-brand-secondary transition-colors">Suporte</a>
+                <span>Conformidade</span>
+                <span>Suporte</span>
               </div>
             </div>
           </div>
