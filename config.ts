@@ -4,7 +4,7 @@ export const CONFIG = {
   portalTitle: "Portal da Qualidade",
   tagline: "Gestão Hospitalar & ONA",
   // Este é o e-mail que recebe os alertas de novos documentos
-  notificationEmail: "engenharia.cd1@eclin.eng.br",
+  notificationEmail: "qualidade@eclin.com.br",
   
   // Banner Principal (Formato 1080x1350 recomendado)
   carouselSlides: [
