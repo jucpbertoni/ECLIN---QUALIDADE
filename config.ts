@@ -6,7 +6,44 @@ export const CONFIG = {
   // Este é o e-mail que recebe os alertas de novos documentos
   notificationEmail: "qualidade@eclin.com.br",
   
-  // Banner Principal (Formato 1080x1350 recomendado)
+  // Link para plataforma de assinatura
+  signingPlatformUrl: "https://assinatura.eclin.com.br",
+
+  // Áreas para documentos oficiais
+  areas: [
+    "Liderança Organizacional",
+    "Gestão de Qualidade e Biossegurança",
+    "Gestão Administrativa e Financeira",
+    "Gestão de Pessoas",
+    "Gestão de Suprimentos e Logística",
+    "Gestão da Informação e Tecnologia",
+    "Gestão da Comunicação e Marketing",
+    "Engenharia Clínica",
+    "Atendimento e Campo",
+    "Assistência Técnica",
+    "Adequações e Obras"
+  ],
+
+  // Mural Qualidade em Ação - Adicione novos posts aqui ou via interface administrativa
+  muralPosts: [
+    {
+      id: '2',
+      title: 'Treinamento de Segurança do Paciente',
+      content: 'Nesta semana, realizamos o treinamento intensivo sobre as 6 metas internacionais de segurança do paciente. A adesão foi de 100% da equipe assistencial!',
+      date: '2024-03-20',
+      image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&q=80&w=800'
+    },
+    {
+      id: '1',
+      title: 'Lançamento da Campanha Qualidade em Ação',
+      content: 'Iniciamos hoje nossa nova jornada rumo à excelência ONA. O mural será nosso ponto de encontro para novidades e conquistas da equipe ECLIN.',
+      date: '2024-03-15',
+      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'
+    }
+  ],
+  
+  // Banner Principal - Para mudar as imagens, substitua as URLs abaixo.
+  // Recomendamos o formato vertical (1080x1350) para melhor visualização no carrossel.
   carouselSlides: [
     {
       id: '1',

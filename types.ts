@@ -12,7 +12,17 @@ export interface QualityDocument {
   status: 'published' | 'pending' | 'signed';
   uploader: string;
   uploadDate: string;
+  area?: string;
+  expirationDate?: string;
   url?: string;
+}
+
+export interface MuralPost {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  image?: string;
 }
 
 export interface CampaignSlide {
