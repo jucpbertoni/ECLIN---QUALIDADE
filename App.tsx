@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { User, QualityDocument, MuralPost } from './types.ts';
 import AwarenessCarousel from './components/AwarenessCarousel.tsx';
 import QualityAssistant from './components/QualityAssistant.tsx';
+import IncidentNotification from './components/IncidentNotification.tsx';
+import Countdown from './components/Countdown.tsx';
 import Logo from './components/Logo.tsx';
 import { CONFIG } from './config.ts';
 
@@ -18,6 +20,18 @@ const App: React.FC = () => {
   const [newPostContent, setNewPostContent] = useState('');
   const [newPostImage, setNewPostImage] = useState('');
   const [isAddingPost, setIsAddingPost] = useState(false);
+
+  const handleMuralImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewPostImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const [documents, setDocuments] = useState<QualityDocument[]>([
     { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01', area: 'Gestão de Qualidade e Biossegurança', expirationDate: '2026-03-01' },
     { id: '2', title: 'Protocolo de Identificação do Paciente', type: 'pdf', status: 'published', uploader: 'Comitê Gestor', uploadDate: '2024-03-15', area: 'Liderança Organizacional', expirationDate: '2026-03-15' },
@@ -25,6 +39,14 @@ const App: React.FC = () => {
   ]);
   const [notification, setNotification] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPost, setSelectedPost] = useState<MuralPost | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Get current password from localStorage or use default
+  const getCurrentPassword = () => localStorage.getItem('eclin_portal_password') || 'Eclin2026';
+  const isFirstAccess = () => !localStorage.getItem('eclin_portal_password');
 
   useEffect(() => {
     if (notification) {
@@ -35,12 +57,46 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      // Simple admin check for demo purposes
-      const isAdmin = email.includes('admin') || email === 'juliana.engbio@gmail.com';
-      setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });
-      setActiveTab('mural');
+    if (email && password) {
+      const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br'];
+      const isAdmin = admins.includes(email.toLowerCase());
+      
+      const validPassword = getCurrentPassword();
+
+      if (password === validPassword) {
+        if (isFirstAccess()) {
+          setShowChangePassword(true);
+          setNotification("Primeiro acesso detectado. Por favor, altere sua senha por segurança.");
+        } else {
+          setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });
+          setActiveTab('mural');
+          setNotification(`Bem-vindo, ${email.split('@')[0]}!`);
+        }
+      } else {
+        setNotification("Senha incorreta. Tente novamente.");
+      }
     }
+  };
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      setNotification("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setNotification("As senhas não coincidem.");
+      return;
+    }
+
+    localStorage.setItem('eclin_portal_password', newPassword);
+    const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br'];
+    const isAdmin = admins.includes(email.toLowerCase());
+    
+    setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });
+    setShowChangePassword(false);
+    setActiveTab('mural');
+    setNotification("Senha alterada com sucesso! Bem-vindo ao portal.");
   };
 
   const handleLogout = () => {
@@ -91,6 +147,13 @@ const App: React.FC = () => {
     setNewPostImage('');
     setIsAddingPost(false);
     setNotification("Novo post adicionado ao Mural!");
+  };
+
+  const handleDeletePost = (id: string) => {
+    if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
+      setMuralPosts(prev => prev.filter(post => post.id !== id));
+      setNotification("Post removido com sucesso.");
+    }
   };
 
   const getExpirationAlert = (dateStr?: string) => {
@@ -220,14 +283,35 @@ const App: React.FC = () => {
                           className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary"
                           required
                         />
-                        <input 
-                          type="url" 
-                          placeholder="URL da Imagem (Opcional)"
-                          value={newPostImage}
-                          onChange={(e) => setNewPostImage(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary"
-                        />
+                        <div className="relative">
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={handleMuralImageUpload}
+                            className="hidden"
+                            id="mural-image-upload"
+                          />
+                          <label 
+                            htmlFor="mural-image-upload" 
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-all"
+                          >
+                            <span className="truncate">{newPostImage ? 'Imagem Selecionada' : 'Selecionar Imagem'}</span>
+                            <i className="fas fa-camera text-brand-primary"></i>
+                          </label>
+                        </div>
                       </div>
+                      {newPostImage && (
+                        <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-slate-100">
+                          <img src={newPostImage} alt="Preview" className="w-full h-full object-cover" />
+                          <button 
+                            type="button"
+                            onClick={() => setNewPostImage('')}
+                            className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
+                          >
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
+                      )}
                       <textarea 
                         placeholder="Conteúdo do Post"
                         value={newPostContent}
@@ -264,10 +348,22 @@ const App: React.FC = () => {
                         </div>
                         <h3 className="text-4xl font-black text-brand-dark leading-tight group-hover:text-brand-primary transition-colors">{post.title}</h3>
                         <p className="text-slate-600 text-lg leading-relaxed font-medium">{post.content}</p>
-                        <div className="pt-4">
-                          <button className="text-[10px] font-black text-brand-dark uppercase tracking-[0.4em] border-b-2 border-brand-secondary pb-1 hover:text-brand-primary hover:border-brand-primary transition-all">
+                        <div className="pt-4 flex items-center gap-6">
+                          <button 
+                            onClick={() => setSelectedPost(post)}
+                            className="text-[10px] font-black text-brand-dark uppercase tracking-[0.4em] border-b-2 border-brand-secondary pb-1 hover:text-brand-primary hover:border-brand-primary transition-all"
+                          >
                             Ler mais detalhes
                           </button>
+                          {user?.role === 'admin' && (
+                            <button 
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-red-500 hover:text-red-700 transition-colors p-2"
+                              title="Excluir Post"
+                            >
+                              <i className="fas fa-trash-alt"></i>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -469,6 +565,9 @@ const App: React.FC = () => {
           <div className="lg:col-span-4 space-y-10">
             {!user && (
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <div className="mb-8">
+                  <Logo />
+                </div>
                 <h3 className="text-xl font-black text-brand-dark mb-8 flex items-center gap-3 uppercase tracking-tighter">
                   <div className="w-2 h-6 bg-brand-secondary rounded-full"></div>
                   Portal {CONFIG.brandName}
@@ -481,6 +580,17 @@ const App: React.FC = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={`colaborador@${CONFIG.brandName.toLowerCase()}.com.br`}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all text-xs font-bold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Senha de Acesso</label>
+                    <input 
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all text-xs font-bold"
                       required
                     />
@@ -502,6 +612,10 @@ const App: React.FC = () => {
               </div>
               <QualityAssistant />
             </div>
+
+            <IncidentNotification />
+
+            <Countdown />
 
             <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Métricas {CONFIG.brandName} 2026</h4>
@@ -535,6 +649,110 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Modal de Alteração de Senha (Primeiro Acesso) */}
+      {showChangePassword && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-brand-dark/90 backdrop-blur-md"></div>
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative z-10 animate-in zoom-in-95 duration-500">
+            <div className="text-center space-y-4 mb-8">
+              <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary mx-auto">
+                <i className="fas fa-shield-alt text-2xl"></i>
+              </div>
+              <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Segurança Obrigatória</h2>
+              <p className="text-xs font-medium text-slate-500">Este é seu primeiro acesso. Para sua segurança, você deve definir uma nova senha pessoal.</p>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nova Senha</label>
+                <input 
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirmar Nova Senha</label>
+                <input 
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repita a senha"
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                  required
+                />
+              </div>
+              <button type="submit" className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-brand-primary/20">
+                Salvar e Acessar Portal
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes do Post */}
+      {selectedPost && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div 
+            className="absolute inset-0 bg-brand-dark/80 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setSelectedPost(null)}
+          ></div>
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-10 duration-500">
+            <button 
+              onClick={() => setSelectedPost(null)}
+              className="absolute top-6 right-6 w-12 h-12 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-brand-dark hover:bg-brand-primary hover:text-white transition-all z-20"
+            >
+              <i className="fas fa-times text-xl"></i>
+            </button>
+            
+            <div className="overflow-y-auto">
+              <div className="relative aspect-video w-full">
+                <img 
+                  src={selectedPost.image || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'} 
+                  alt={selectedPost.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
+              </div>
+              
+              <div className="p-10 -mt-20 relative z-10 space-y-6">
+                <div className="flex items-center gap-4">
+                  <span className="w-12 h-[2px] bg-brand-secondary"></span>
+                  <span className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.3em]">{selectedPost.date}</span>
+                </div>
+                <h2 className="text-5xl font-black text-brand-dark leading-tight tracking-tighter uppercase">{selectedPost.title}</h2>
+                <div className="prose prose-slate max-w-none">
+                  <p className="text-slate-600 text-xl leading-relaxed font-medium whitespace-pre-wrap">
+                    {selectedPost.content}
+                  </p>
+                </div>
+                
+                <div className="pt-10 border-t border-slate-100 flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg brand-gradient flex items-center justify-center text-white text-xs font-bold">
+                      E
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-800 uppercase leading-none">Equipe de Qualidade</p>
+                      <p className="text-[8px] text-brand-secondary font-bold uppercase tracking-widest">Publicação Oficial {CONFIG.brandName}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPost(null)}
+                    className="bg-brand-dark text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary transition-all shadow-lg"
+                  >
+                    Fechar Detalhes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

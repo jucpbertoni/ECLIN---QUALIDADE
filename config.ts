@@ -28,22 +28,24 @@ export const CONFIG = {
   muralPosts: [
     {
       id: '2',
-      title: 'Treinamento de Segurança do Paciente',
-      content: 'Nesta semana, realizamos o treinamento intensivo sobre as 6 metas internacionais de segurança do paciente. A adesão foi de 100% da equipe assistencial!',
-      date: '2024-03-20',
+      title: 'Treinamento SGQ ECLIN',
+      content: 'Programe-se, no próximo dia 14 teremos o treinamento ONLINE do Sistema de Gestão da Qualidade da ECLIN, com atualizações para você aplicar no seu dia a dia!',
+      date: '2026-04-14',
       image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&q=80&w=800'
     },
     {
       id: '1',
-      title: 'Lançamento da Campanha Qualidade em Ação',
-      content: 'Iniciamos hoje nossa nova jornada rumo à excelência ONA. O mural será nosso ponto de encontro para novidades e conquistas da equipe ECLIN.',
-      date: '2024-03-15',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'
+      title: 'Lançamento da Campanha Qualidade em Ação e nosso Mascote "Selo Azul"',
+      content: 'Iniciamos hoje nossa nova nova campanha rumo à excelência na prestação de serviços para a Saúde. O mural será nosso ponto de encontro para novidades e conquistas da equipe ECLIN.',
+      date: '2026-02-06',
+      image: 'https://lh3.googleusercontent.com/d/1MHY3wc3GseX8pPFbzVDewqH7kaYDTWyD'
     }
   ],
   
   // Banner Principal - Para mudar as imagens, substitua as URLs abaixo.
   // Recomendamos o formato vertical (1080x1350) para melhor visualização no carrossel.
+  // DICA: Para usar links do Google Drive, use o formato: 
+  // https://lh3.googleusercontent.com/d/ID_DO_ARQUIVO
   carouselSlides: [
     {
       id: '1',

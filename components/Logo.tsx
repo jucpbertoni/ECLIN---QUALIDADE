@@ -1,19 +1,23 @@
 
 import React from 'react';
 
-const Logo: React.FC<{ className?: string }> = ({ className = "h-8" }) => {
+const Logo: React.FC<{ className?: string }> = ({ className = "h-10" }) => {
   return (
     <div className={`${className} flex items-center gap-2`}>
-      <div className="bg-brand-primary p-2 rounded-lg shadow-sm">
-        <i className="fas fa-stethoscope text-white text-xl"></i>
-      </div>
-      <div className="flex flex-col">
-        <span className="text-xl font-black tracking-tight text-brand-dark leading-none uppercase">
-          E<span className="text-brand-primary">CLIN</span>
-        </span>
-        <span className="text-[9px] font-bold text-brand-secondary uppercase tracking-[0.2em] mt-1">
-          Portal da Qualidade
-        </span>
+      <div className="flex items-center">
+        {/* Circle with "ec" */}
+        <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-brand-primary">
+          <span className="text-black font-bold text-lg leading-none">ec</span>
+        </div>
+        {/* "eclin" text */}
+        <div className="ml-2 flex flex-col justify-center">
+          <span className="text-2xl font-black italic text-brand-secondary leading-none lowercase">
+            eclin
+          </span>
+          <span className="text-[8px] font-bold text-brand-dark uppercase tracking-widest mt-0.5">
+            Portal da Qualidade
+          </span>
+        </div>
       </div>
     </div>
   );
