@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "MuralPost": {
+      "title": "MuralPost",
+      "description": "A post displayed in the quality mural carousel.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the post." },
+        "title": { "type": "string", "description": "Title of the post." },
+        "content": { "type": "string", "description": "Content or description of the post." },
+        "image": { "type": "string", "description": "Base64 encoded image or URL." },
+        "date": { "type": "string", "description": "Date the post was created." },
+        "author": { "type": "string", "description": "Author of the post." }
+      },
+      "required": ["title", "content", "date"]
+    },
+    "QualityDocument": {
+      "title": "QualityDocument",
+      "description": "An official quality document in the archive.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the document." },
+        "title": { "type": "string", "description": "Title of the document." },
+        "type": { "type": "string", "enum": ["pdf", "doc", "docx"], "description": "File type." },
+        "status": { "type": "string", "enum": ["published", "review"], "description": "Current status." },
+        "uploader": { "type": "string", "description": "Name of the person who uploaded it." },
+        "uploadDate": { "type": "string", "description": "Date of upload." },
+        "area": { "type": "string", "description": "Responsible area." },
+        "expirationDate": { "type": "string", "description": "Expiration date of the document." }
+      },
+      "required": ["title", "type", "status", "uploader", "uploadDate", "area"]
+    }
+  },
+  "firestore": {
+    "/mural_posts/{postId}": {
+      "schema": "MuralPost",
+      "description": "Collection of mural posts."
+    },
+    "/documents/{docId}": {
+      "schema": "QualityDocument",
+      "description": "Collection of quality documents."
+    }
+  }
+}

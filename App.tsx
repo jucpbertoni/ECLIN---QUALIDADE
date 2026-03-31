@@ -7,6 +7,70 @@ import Countdown from './components/Countdown.tsx';
 import Logo from './components/Logo.tsx';
 import MuralCarousel from './components/MuralCarousel.tsx';
 import { CONFIG } from './config.ts';
+import { db, auth } from './src/firebase.ts';
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  orderBy,
+  setDoc,
+  getDocFromServer
+} from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -16,7 +80,69 @@ const App: React.FC = () => {
   const [selectedArea, setSelectedArea] = useState(CONFIG.areas[0]);
   const [selectedFilterArea, setSelectedFilterArea] = useState<string>('Todas as áreas');
   const [expirationDate, setExpirationDate] = useState('');
-  const [muralPosts, setMuralPosts] = useState<MuralPost[]>(CONFIG.muralPosts);
+  
+  const [muralPosts, setMuralPosts] = useState<MuralPost[]>([]);
+  const [documents, setDocuments] = useState<QualityDocument[]>([]);
+
+  // Firebase Real-time Sync
+  useEffect(() => {
+    const muralQuery = query(collection(db, 'mural_posts'), orderBy('date', 'desc'));
+    const unsubMural = onSnapshot(muralQuery, (snapshot) => {
+      const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
+      // If empty, initialize with default config posts
+      if (posts.length === 0) {
+        CONFIG.muralPosts.forEach(async (post) => {
+          try {
+            const { id, ...postData } = post;
+            await setDoc(doc(db, 'mural_posts', id), postData);
+          } catch (e) {
+            console.error("Error initializing mural posts", e);
+          }
+        });
+      } else {
+        setMuralPosts(posts);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'mural_posts'));
+
+    const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QualityDocument));
+      if (docs.length === 0) {
+        const initialDocs = [
+          { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01', area: 'Gestão de Qualidade e Biossegurança', expirationDate: '2026-03-01' },
+          { id: '2', title: 'Protocolo de Identificação do Paciente', type: 'pdf', status: 'published', uploader: 'Comitê Gestor', uploadDate: '2024-03-15', area: 'Liderança Organizacional', expirationDate: '2026-03-15' },
+          { id: '3', title: `Política de Descarte de Resíduos ${CONFIG.brandName}`, type: 'pdf', status: 'published', uploader: 'Engenharia Clínica', uploadDate: '2024-03-20', area: 'Engenharia Clínica', expirationDate: '2026-03-20' },
+        ];
+        initialDocs.forEach(async (docItem) => {
+          try {
+            const { id, ...docData } = docItem;
+            await setDoc(doc(db, 'documents', id), docData);
+          } catch (e) {
+            console.error("Error initializing documents", e);
+          }
+        });
+      } else {
+        setDocuments(docs);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'documents'));
+
+    // Test connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    }
+    testConnection();
+
+    return () => {
+      unsubMural();
+      unsubDocs();
+    };
+  }, []);
+
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
   const [newPostImage, setNewPostImage] = useState('');
@@ -33,12 +159,6 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
-
-  const [documents, setDocuments] = useState<QualityDocument[]>([
-    { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01', area: 'Gestão de Qualidade e Biossegurança', expirationDate: '2026-03-01' },
-    { id: '2', title: 'Protocolo de Identificação do Paciente', type: 'pdf', status: 'published', uploader: 'Comitê Gestor', uploadDate: '2024-03-15', area: 'Liderança Organizacional', expirationDate: '2026-03-15' },
-    { id: '3', title: `Política de Descarte de Resíduos ${CONFIG.brandName}`, type: 'pdf', status: 'published', uploader: 'Engenharia Clínica', uploadDate: '2024-03-20', area: 'Engenharia Clínica', expirationDate: '2026-03-20' },
-  ]);
   const [notification, setNotification] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPost, setSelectedPost] = useState<MuralPost | null>(null);
@@ -106,7 +226,7 @@ const App: React.FC = () => {
     setActiveTab('mural');
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'docx') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'docx') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -115,8 +235,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const newDoc: QualityDocument = {
-      id: Math.random().toString(36).substr(2, 9),
+    const newDoc = {
       title: file.name,
       type: type,
       status: type === 'docx' ? 'pending' : 'published',
@@ -126,39 +245,43 @@ const App: React.FC = () => {
       expirationDate: type === 'pdf' ? expirationDate : undefined
     };
 
-    setDocuments(prev => [newDoc, ...prev]);
-    setNotification(`Sucesso! Notificação enviada para ${CONFIG.notificationEmail} sobre o arquivo: ${file.name}`);
-    setExpirationDate('');
+    try {
+      await addDoc(collection(db, 'documents'), newDoc);
+      setNotification(`Sucesso! Notificação enviada para ${CONFIG.notificationEmail} sobre o arquivo: ${file.name}`);
+      setExpirationDate('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'documents');
+    }
   };
 
-  const handleAddPost = (e: React.FormEvent) => {
+  const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostTitle || !newPostContent) return;
 
-    if (editingPost) {
-      setMuralPosts(prev => prev.map(post => 
-        post.id === editingPost.id 
-          ? { ...post, title: newPostTitle, content: newPostContent, image: newPostImage || undefined }
-          : post
-      ));
-      setNotification("Post atualizado com sucesso!");
-    } else {
-      const newPost: MuralPost = {
-        id: Math.random().toString(36).substr(2, 9),
-        title: newPostTitle,
-        content: newPostContent,
-        date: new Date().toISOString().split('T')[0],
-        image: newPostImage || undefined
-      };
-      setMuralPosts(prev => [newPost, ...prev]);
-      setNotification("Novo post adicionado ao Mural!");
-    }
+    const postData = {
+      title: newPostTitle,
+      content: newPostContent,
+      date: new Date().toISOString().split('T')[0],
+      image: newPostImage || undefined
+    };
 
-    setNewPostTitle('');
-    setNewPostContent('');
-    setNewPostImage('');
-    setIsAddingPost(false);
-    setEditingPost(null);
+    try {
+      if (editingPost) {
+        await updateDoc(doc(db, 'mural_posts', editingPost.id), postData);
+        setNotification("Post atualizado com sucesso!");
+      } else {
+        await addDoc(collection(db, 'mural_posts'), postData);
+        setNotification("Novo post adicionado ao Mural!");
+      }
+      
+      setNewPostTitle('');
+      setNewPostContent('');
+      setNewPostImage('');
+      setIsAddingPost(false);
+      setEditingPost(null);
+    } catch (error) {
+      handleFirestoreError(error, editingPost ? OperationType.UPDATE : OperationType.CREATE, 'mural_posts');
+    }
   };
 
   const startEditingPost = (post: MuralPost) => {
@@ -170,28 +293,40 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeletePost = (id: string) => {
+  const handleDeletePost = async (id: string) => {
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
-      setMuralPosts(prev => prev.filter(post => post.id !== id));
-      setNotification("Post removido com sucesso.");
+      try {
+        await deleteDoc(doc(db, 'mural_posts', id));
+        setNotification("Post removido com sucesso.");
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `mural_posts/${id}`);
+      }
     }
   };
 
-  const handleDeleteDocument = (id: string) => {
+  const handleDeleteDocument = async (id: string) => {
     if (window.confirm("Tem certeza que deseja excluir este documento?")) {
-      setDocuments(prev => prev.filter(doc => doc.id !== id));
-      setNotification("Documento removido com sucesso.");
+      try {
+        await deleteDoc(doc(db, 'documents', id));
+        setNotification("Documento removido com sucesso.");
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
+      }
     }
   };
 
-  const handleEditDocument = (id: string) => {
-    const doc = documents.find(d => d.id === id);
-    if (!doc) return;
+  const handleEditDocument = async (id: string) => {
+    const docItem = documents.find(d => d.id === id);
+    if (!docItem) return;
     
-    const newTitle = window.prompt("Novo título para o documento:", doc.title);
-    if (newTitle && newTitle !== doc.title) {
-      setDocuments(prev => prev.map(d => d.id === id ? { ...d, title: newTitle } : d));
-      setNotification("Documento atualizado com sucesso.");
+    const newTitle = window.prompt("Novo título para o documento:", docItem.title);
+    if (newTitle && newTitle !== docItem.title) {
+      try {
+        await updateDoc(doc(db, 'documents', id), { title: newTitle });
+        setNotification("Documento atualizado com sucesso.");
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
+      }
     }
   };
 
