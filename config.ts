@@ -7,7 +7,7 @@ export const CONFIG = {
   notificationEmail: "qualidade@eclin.com.br",
   
   // Link para plataforma de assinatura
-  signingPlatformUrl: "https://assinatura.eclin.com.br",
+  signingPlatformUrl: "https://app.tangerino.com.br/Tangerino/pages/GEDSignatures?funcionalidade=131",
 
   // Áreas para documentos oficiais
   areas: [
@@ -69,8 +69,8 @@ export const CONFIG = {
 
   // Textos das abas
   tabs: {
+    mural: "Mural",
     public: "Acervo",
-    signed: "Homologados",
     upload: "Submeter"
   }
 };

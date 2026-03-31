@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, QualityDocument, MuralPost } from './types.ts';
-import AwarenessCarousel from './components/AwarenessCarousel.tsx';
 import QualityAssistant from './components/QualityAssistant.tsx';
 import IncidentNotification from './components/IncidentNotification.tsx';
 import Countdown from './components/Countdown.tsx';
 import Logo from './components/Logo.tsx';
+import MuralCarousel from './components/MuralCarousel.tsx';
 import { CONFIG } from './config.ts';
 
 const App: React.FC = () => {
@@ -14,12 +14,14 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedArea, setSelectedArea] = useState(CONFIG.areas[0]);
+  const [selectedFilterArea, setSelectedFilterArea] = useState<string>('Todas as áreas');
   const [expirationDate, setExpirationDate] = useState('');
   const [muralPosts, setMuralPosts] = useState<MuralPost[]>(CONFIG.muralPosts);
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
   const [newPostImage, setNewPostImage] = useState('');
   const [isAddingPost, setIsAddingPost] = useState(false);
+  const [editingPost, setEditingPost] = useState<MuralPost | null>(null);
 
   const handleMuralImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,7 +60,7 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (email && password) {
-      const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br'];
+      const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br', 'rafael.dias@eclin.eng.br'];
       const isAdmin = admins.includes(email.toLowerCase());
       
       const validPassword = getCurrentPassword();
@@ -90,7 +92,7 @@ const App: React.FC = () => {
     }
 
     localStorage.setItem('eclin_portal_password', newPassword);
-    const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br'];
+    const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br', 'rafael.dias@eclin.eng.br'];
     const isAdmin = admins.includes(email.toLowerCase());
     
     setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });
@@ -101,7 +103,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setUser(null);
-    setActiveTab('public');
+    setActiveTab('mural');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'docx') => {
@@ -133,26 +135,63 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!newPostTitle || !newPostContent) return;
 
-    const newPost: MuralPost = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newPostTitle,
-      content: newPostContent,
-      date: new Date().toISOString().split('T')[0],
-      image: newPostImage || undefined
-    };
+    if (editingPost) {
+      setMuralPosts(prev => prev.map(post => 
+        post.id === editingPost.id 
+          ? { ...post, title: newPostTitle, content: newPostContent, image: newPostImage || undefined }
+          : post
+      ));
+      setNotification("Post atualizado com sucesso!");
+    } else {
+      const newPost: MuralPost = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: newPostTitle,
+        content: newPostContent,
+        date: new Date().toISOString().split('T')[0],
+        image: newPostImage || undefined
+      };
+      setMuralPosts(prev => [newPost, ...prev]);
+      setNotification("Novo post adicionado ao Mural!");
+    }
 
-    setMuralPosts(prev => [newPost, ...prev]);
     setNewPostTitle('');
     setNewPostContent('');
     setNewPostImage('');
     setIsAddingPost(false);
-    setNotification("Novo post adicionado ao Mural!");
+    setEditingPost(null);
+  };
+
+  const startEditingPost = (post: MuralPost) => {
+    setEditingPost(post);
+    setNewPostTitle(post.title);
+    setNewPostContent(post.content);
+    setNewPostImage(post.image || '');
+    setIsAddingPost(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeletePost = (id: string) => {
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
       setMuralPosts(prev => prev.filter(post => post.id !== id));
       setNotification("Post removido com sucesso.");
+    }
+  };
+
+  const handleDeleteDocument = (id: string) => {
+    if (window.confirm("Tem certeza que deseja excluir este documento?")) {
+      setDocuments(prev => prev.filter(doc => doc.id !== id));
+      setNotification("Documento removido com sucesso.");
+    }
+  };
+
+  const handleEditDocument = (id: string) => {
+    const doc = documents.find(d => d.id === id);
+    if (!doc) return;
+    
+    const newTitle = window.prompt("Novo título para o documento:", doc.title);
+    if (newTitle && newTitle !== doc.title) {
+      setDocuments(prev => prev.map(d => d.id === id ? { ...d, title: newTitle } : d));
+      setNotification("Documento atualizado com sucesso.");
     }
   };
 
@@ -191,7 +230,7 @@ const App: React.FC = () => {
                   onClick={() => setActiveTab('mural')}
                   className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'mural' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                 >
-                  Mural
+                  {CONFIG.tabs.mural}
                 </button>
                 {user && (
                   <>
@@ -200,12 +239,6 @@ const App: React.FC = () => {
                       className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'public' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                     >
                       {CONFIG.tabs.public}
-                    </button>
-                    <button 
-                      onClick={() => setActiveTab('signed')}
-                      className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'signed' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
-                    >
-                      {CONFIG.tabs.signed}
                     </button>
                     <button 
                       onClick={() => setActiveTab('upload')}
@@ -219,7 +252,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              {user ? (
+              {user && (
                 <div className="flex items-center gap-3 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
                   <div className="w-8 h-8 rounded-lg brand-gradient flex items-center justify-center text-white text-xs font-bold">
                     {user.name[0].toUpperCase()}
@@ -235,13 +268,6 @@ const App: React.FC = () => {
                     <i className="fas fa-sign-out-alt"></i>
                   </button>
                 </div>
-              ) : (
-                <button 
-                  onClick={() => setActiveTab('public')}
-                  className="bg-brand-primary text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20"
-                >
-                  Acesso Interno
-                </button>
               )}
             </div>
           </div>
@@ -251,18 +277,34 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-10">
-            <AwarenessCarousel />
-
             {activeTab === 'mural' && (
               <div className="space-y-12 animate-in fade-in slide-in-from-bottom-5">
                 <div className="flex items-end justify-between border-b-4 border-brand-dark pb-6">
-                  <div>
-                    <span className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.4em] mb-2 block">Campanha Ativa 2026</span>
-                    <h2 className="text-6xl font-black text-brand-dark tracking-tighter uppercase leading-none">Qualidade <br/>em Ação</h2>
+                  <div className="flex items-center gap-6">
+                    <img 
+                      src="https://lh3.googleusercontent.com/d/1jsycEnW0eYwgRkvhw6mfckuDVeBrpacT" 
+                      alt="Selo Qualidade" 
+                      className="w-24 h-24 object-contain animate-pulse"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div>
+                      <span className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.4em] mb-2 block">Mural da Qualidade</span>
+                      <h2 className="text-6xl font-black text-blue-600 tracking-tighter uppercase leading-none">Qualidade <br/>em Ação</h2>
+                    </div>
                   </div>
                   {user?.role === 'admin' && (
                     <button 
-                      onClick={() => setIsAddingPost(!isAddingPost)}
+                      onClick={() => {
+                        if (isAddingPost) {
+                          setIsAddingPost(false);
+                          setEditingPost(null);
+                          setNewPostTitle('');
+                          setNewPostContent('');
+                          setNewPostImage('');
+                        } else {
+                          setIsAddingPost(true);
+                        }
+                      }}
                       className="bg-brand-dark text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary transition-all"
                     >
                       {isAddingPost ? 'Cancelar' : 'Novo Post'}
@@ -270,9 +312,47 @@ const App: React.FC = () => {
                   )}
                 </div>
 
+                <MuralCarousel 
+                  posts={muralPosts} 
+                  onSelectPost={setSelectedPost} 
+                  onEditPost={startEditingPost}
+                  isAdmin={user?.role === 'admin'}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4 hover:border-brand-primary/30 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center text-brand-primary group-hover:scale-110 transition-transform">
+                        <i className="fas fa-bullseye text-lg"></i>
+                      </div>
+                      <h4 className="text-sm font-black text-brand-dark uppercase tracking-tight">Nossa Missão</h4>
+                    </div>
+                    <p className="text-xs font-medium text-slate-600 leading-relaxed">
+                      Impactar positivamente o setor da saúde construindo um futuro mais saudável e inovador.
+                    </p>
+                  </div>
+                  <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4 hover:border-brand-secondary/30 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-brand-secondary/10 rounded-xl flex items-center justify-center text-brand-secondary group-hover:scale-110 transition-transform">
+                        <i className="fas fa-heart text-lg"></i>
+                      </div>
+                      <h4 className="text-sm font-black text-brand-dark uppercase tracking-tight">Nossos Valores</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {['Compromisso', 'Desenvolvimento Contínuo', 'Resultado', 'Segurança'].map(valor => (
+                        <span key={valor} className="px-3 py-1 bg-slate-50 text-slate-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-slate-100">
+                          {valor}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {isAddingPost && (
                   <div className="bg-white p-8 rounded-[2rem] border-2 border-brand-primary/20 shadow-xl space-y-6">
-                    <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">Novo Post no Mural</h3>
+                    <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">
+                      {editingPost ? 'Editar Post do Mural' : 'Novo Post no Mural'}
+                    </h3>
                     <form onSubmit={handleAddPost} className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input 
@@ -320,54 +400,44 @@ const App: React.FC = () => {
                         required
                       />
                       <button type="submit" className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs">
-                        Publicar no Mural
+                        {editingPost ? 'Salvar Alterações' : 'Publicar no Mural'}
                       </button>
                     </form>
                   </div>
                 )}
 
                 <div className="grid grid-cols-1 gap-16">
-                  {muralPosts.map((post, idx) => (
-                    <div key={post.id} className="grid grid-cols-1 md:grid-cols-12 gap-10 group">
-                      <div className="md:col-span-5 relative">
-                        <div className="aspect-[4/3] rounded-[2.5rem] overflow-hidden shadow-2xl group-hover:scale-[1.02] transition-transform duration-700">
-                          <img 
-                            src={post.image || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'} 
-                            alt={post.title} 
-                            className="w-full h-full object-cover" 
-                          />
-                        </div>
-                        <div className="absolute -bottom-6 -right-6 w-24 h-24 brand-gradient rounded-3xl flex items-center justify-center text-white text-3xl font-black shadow-xl rotate-12 group-hover:rotate-0 transition-transform">
-                          0{muralPosts.length - idx}
-                        </div>
-                      </div>
-                      <div className="md:col-span-7 flex flex-col justify-center space-y-6">
-                        <div className="flex items-center gap-4">
-                          <span className="w-12 h-[2px] bg-brand-secondary"></span>
-                          <span className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.3em]">{post.date}</span>
-                        </div>
-                        <h3 className="text-4xl font-black text-brand-dark leading-tight group-hover:text-brand-primary transition-colors">{post.title}</h3>
-                        <p className="text-slate-600 text-lg leading-relaxed font-medium">{post.content}</p>
-                        <div className="pt-4 flex items-center gap-6">
-                          <button 
-                            onClick={() => setSelectedPost(post)}
-                            className="text-[10px] font-black text-brand-dark uppercase tracking-[0.4em] border-b-2 border-brand-secondary pb-1 hover:text-brand-primary hover:border-brand-primary transition-all"
-                          >
-                            Ler mais detalhes
-                          </button>
-                          {user?.role === 'admin' && (
-                            <button 
-                              onClick={() => handleDeletePost(post.id)}
-                              className="text-red-500 hover:text-red-700 transition-colors p-2"
-                              title="Excluir Post"
-                            >
-                              <i className="fas fa-trash-alt"></i>
-                            </button>
-                          )}
-                        </div>
+                  {/* Optional: Show other posts below if needed, or just the carousel */}
+                  {muralPosts.length > 3 && (
+                    <div className="pt-10 border-t border-slate-100">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-10">Histórico de Publicações</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {muralPosts.slice(3).map((post) => (
+                          <div key={post.id} className="bg-white p-6 rounded-3xl border border-slate-100 hover:border-brand-secondary/30 transition-all group shadow-sm hover:shadow-md">
+                            <div className="aspect-video rounded-2xl overflow-hidden mb-4">
+                              <img src={post.image || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            </div>
+                            <div className="space-y-3">
+                              <span className="text-[8px] font-black text-brand-secondary uppercase tracking-widest">{post.date}</span>
+                              <h5 className="text-lg font-black text-brand-dark leading-tight line-clamp-1">{post.title}</h5>
+                              <p className="text-xs text-slate-500 line-clamp-2 font-medium">{post.content}</p>
+                              <div className="pt-2 flex justify-between items-center">
+                                <div className="flex gap-4">
+                                  <button onClick={() => setSelectedPost(post)} className="text-[9px] font-black text-brand-primary uppercase tracking-widest border-b border-brand-primary/30 pb-0.5">Ver Post</button>
+                                  {user?.role === 'admin' && (
+                                    <button onClick={() => startEditingPost(post)} className="text-[9px] font-black text-brand-secondary uppercase tracking-widest border-b border-brand-secondary/30 pb-0.5">Editar</button>
+                                  )}
+                                </div>
+                                {user?.role === 'admin' && (
+                                  <button onClick={() => handleDeletePost(post.id)} className="text-red-400 hover:text-red-600 transition-colors"><i className="fas fa-trash-alt"></i></button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
@@ -376,7 +446,7 @@ const App: React.FC = () => {
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                   <div>
-                    <h2 className="text-3xl font-black text-brand-dark tracking-tight">Qualidade {CONFIG.brandName}</h2>
+                    <h2 className="text-3xl font-black text-brand-dark tracking-tight">Acervo {CONFIG.brandName}</h2>
                     <p className="text-sm text-slate-500 font-medium">Controle de normas e protocolos assistenciais.</p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -390,19 +460,28 @@ const App: React.FC = () => {
                         className="pl-12 pr-6 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary w-64 shadow-sm"
                       />
                     </div>
-                    <button 
-                      onClick={() => setActiveTab('signed')}
-                      className="bg-brand-primary text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:shadow-xl transition-all active:scale-95 shadow-lg shadow-brand-primary/20"
-                    >
-                      <i className="fas fa-stamp text-brand-secondary"></i>
-                      Validados ONA
-                    </button>
                   </div>
                 </div>
 
-                {CONFIG.areas.map(area => {
+                <div className="flex flex-wrap gap-2 pb-4 border-b border-slate-100">
+                  {['Todas as áreas', ...CONFIG.areas].map(area => (
+                    <button
+                      key={area}
+                      onClick={() => setSelectedFilterArea(area)}
+                      className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                        selectedFilterArea === area 
+                        ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' 
+                        : 'bg-white text-slate-400 hover:text-brand-primary border border-slate-100'
+                      }`}
+                    >
+                      {area}
+                    </button>
+                  ))}
+                </div>
+
+                {CONFIG.areas.filter(area => selectedFilterArea === 'Todas as áreas' || selectedFilterArea === area).map(area => {
                   const areaDocs = documents.filter(d => 
-                    d.type === 'pdf' && 
+                    d.status === 'published' && 
                     d.area === area &&
                     (d.title.toLowerCase().includes(searchTerm.toLowerCase()) || area.toLowerCase().includes(searchTerm.toLowerCase()))
                   );
@@ -422,12 +501,32 @@ const App: React.FC = () => {
                                 <div className="bg-brand-primary/5 p-3 rounded-xl text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-all">
                                   <i className="fas fa-file-pdf text-xl"></i>
                                 </div>
-                                {alert && (
-                                  <div className={`flex items-center gap-1.5 ${alert.color} text-[8px] font-black uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md`}>
-                                    <i className={`fas ${alert.icon}`}></i>
-                                    {alert.label}
-                                  </div>
-                                )}
+                                <div className="flex flex-col items-end gap-2">
+                                  {alert && (
+                                    <div className={`flex items-center gap-1.5 ${alert.color} text-[8px] font-black uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md`}>
+                                      <i className={`fas ${alert.icon}`}></i>
+                                      {alert.label}
+                                    </div>
+                                  )}
+                                  {user?.role === 'admin' && (
+                                    <div className="flex gap-2">
+                                      <button 
+                                        onClick={() => handleEditDocument(doc.id)}
+                                        className="text-slate-400 hover:text-brand-primary transition-colors p-1"
+                                        title="Editar Título"
+                                      >
+                                        <i className="fas fa-edit"></i>
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteDocument(doc.id)}
+                                        className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                        title="Excluir Documento"
+                                      >
+                                        <i className="fas fa-trash-alt"></i>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex-1 min-w-0">
                                 <h4 className="font-black text-slate-800 text-sm mb-2 group-hover:text-brand-primary transition-colors leading-tight">{doc.title}</h4>
@@ -451,44 +550,46 @@ const App: React.FC = () => {
                   );
                 })}
 
-                <div className="bg-white p-12 rounded-[3rem] border-4 border-dashed border-slate-100 space-y-8 hover:border-brand-secondary/40 transition-all group">
-                  <div className="text-center space-y-2">
-                    <div className="w-16 h-16 bg-brand-light rounded-2xl flex items-center justify-center mx-auto text-brand-primary group-hover:scale-110 transition-transform">
-                      <i className="fas fa-file-medical text-2xl"></i>
+                {user?.role === 'admin' && (
+                  <div className="bg-white p-12 rounded-[3rem] border-4 border-dashed border-slate-100 space-y-8 hover:border-brand-secondary/40 transition-all group">
+                    <div className="text-center space-y-2">
+                      <div className="w-16 h-16 bg-brand-light rounded-2xl flex items-center justify-center mx-auto text-brand-primary group-hover:scale-110 transition-transform">
+                        <i className="fas fa-file-medical text-2xl"></i>
+                      </div>
+                      <h3 className="text-xl font-black text-brand-dark">Upload de Documento Oficial</h3>
+                      <p className="text-slate-500 max-w-sm mx-auto font-medium text-xs">Preencha os dados obrigatórios para publicação.</p>
                     </div>
-                    <h3 className="text-xl font-black text-brand-dark">Upload de Documento Oficial</h3>
-                    <p className="text-slate-500 max-w-sm mx-auto font-medium text-xs">Preencha os dados obrigatórios para publicação.</p>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Área Responsável</label>
-                      <select 
-                        value={selectedArea}
-                        onChange={(e) => setSelectedArea(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
-                      >
-                        {CONFIG.areas.map(a => <option key={a} value={a}>{a}</option>)}
-                      </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Área Responsável</label>
+                        <select 
+                          value={selectedArea}
+                          onChange={(e) => setSelectedArea(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                        >
+                          {CONFIG.areas.map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Validade</label>
+                        <input 
+                          type="date"
+                          value={expirationDate}
+                          onChange={(e) => setExpirationDate(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Validade</label>
-                      <input 
-                        type="date"
-                        value={expirationDate}
-                        onChange={(e) => setExpirationDate(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
-                      />
-                    </div>
-                  </div>
 
-                  <div className="text-center">
-                    <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'pdf')} className="hidden" id="pdf-upload" />
-                    <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
-                      Selecionar PDF e Enviar
-                    </label>
+                    <div className="text-center">
+                      <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'pdf')} className="hidden" id="pdf-upload" />
+                      <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
+                        Selecionar PDF e Enviar
+                      </label>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -563,44 +664,43 @@ const App: React.FC = () => {
           </div>
 
           <div className="lg:col-span-4 space-y-10">
+            <Countdown />
+
             {!user && (
-              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <div className="mb-8">
-                  <Logo />
-                </div>
-                <h3 className="text-xl font-black text-brand-dark mb-8 flex items-center gap-3 uppercase tracking-tighter">
-                  <div className="w-2 h-6 bg-brand-secondary rounded-full"></div>
-                  Portal {CONFIG.brandName}
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <h3 className="text-lg font-black text-brand-dark mb-6 flex items-center gap-3 uppercase tracking-tighter">
+                  <div className="w-1.5 h-5 bg-brand-secondary rounded-full"></div>
+                  Acesso Interno
                 </h3>
-                <form onSubmit={handleLogin} className="space-y-6">
+                <form onSubmit={handleLogin} className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">ID Corporativo</label>
                     <input 
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={`colaborador@${CONFIG.brandName.toLowerCase()}.com.br`}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all text-xs font-bold"
+                      placeholder="E-mail Corporativo"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Senha de Acesso</label>
                     <input 
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition-all text-xs font-bold"
+                      placeholder="Senha"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
                       required
                     />
                   </div>
-                  <button type="submit" className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-brand-primary/20">
-                    Autenticar
+                  <button type="submit" className="w-full brand-gradient text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20">
+                    Entrar
                   </button>
                 </form>
               </div>
             )}
+
+            <IncidentNotification />
 
             <div className="bg-brand-dark rounded-[2.5rem] p-10 text-white space-y-8 shadow-2xl relative overflow-hidden group">
               <div className="relative">
@@ -608,28 +708,9 @@ const App: React.FC = () => {
                   <i className="fas fa-brain text-brand-secondary"></i>
                   IA da {CONFIG.brandName}
                 </h3>
-                <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-[0.3em] mt-2">Consultor ONA Integrado</p>
+                <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-[0.3em] mt-2">Consultor da Qualidade Integrado</p>
               </div>
               <QualityAssistant />
-            </div>
-
-            <IncidentNotification />
-
-            <Countdown />
-
-            <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Métricas {CONFIG.brandName} 2026</h4>
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-end">
-                    <span className="text-xs font-black uppercase text-brand-dark">Conformidade</span>
-                    <span className="text-sm font-black text-brand-primary">94%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
-                    <div className="h-full bg-brand-primary w-[94%] rounded-full"></div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

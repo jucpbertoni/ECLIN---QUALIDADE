@@ -2,12 +2,11 @@
 import { GoogleGenAI } from "@google/genai";
 
 export const askQualityAssistant = async (prompt: string): Promise<string> => {
-  // Tenta pegar de várias formas possíveis em diferentes ambientes
-  const apiKey = (window as any).process?.env?.API_KEY || process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
-    console.error("API_KEY não encontrada no ambiente.");
-    return "O assistente está offline. Verifique se a API_KEY foi configurada corretamente no painel da Vercel.";
+    console.error("GEMINI_API_KEY não encontrada no ambiente.");
+    return "O assistente está offline. Verifique as configurações de chave API.";
   }
 
   try {

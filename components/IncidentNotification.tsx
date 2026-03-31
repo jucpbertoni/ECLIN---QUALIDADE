@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const IncidentNotification: React.FC = () => {
-  const [showQR, setShowQR] = useState(false);
   const formUrl = "https://forms.gle/XntyfSBQLBihJrJX7";
 
   return (
@@ -19,6 +18,15 @@ const IncidentNotification: React.FC = () => {
       </div>
 
       <div className="space-y-4">
+        <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+          <div className="bg-white p-4 rounded-2xl shadow-sm">
+            <QRCodeSVG value={formUrl} size={150} />
+          </div>
+          <p className="mt-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">
+            Aponte a câmera para o QR Code para acessar pelo celular
+          </p>
+        </div>
+
         <a 
           href={formUrl}
           target="_blank"
@@ -28,25 +36,6 @@ const IncidentNotification: React.FC = () => {
           <i className="fas fa-external-link-alt"></i>
           Acessar Formulário
         </a>
-
-        <button 
-          onClick={() => setShowQR(!showQR)}
-          className="w-full flex items-center justify-center gap-3 bg-slate-100 text-slate-600 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all"
-        >
-          <i className={`fas ${showQR ? 'fa-times' : 'fa-qrcode'}`}></i>
-          {showQR ? 'Ocultar QR Code' : 'Ver QR Code'}
-        </button>
-
-        {showQR && (
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 animate-in zoom-in-95 duration-300">
-            <div className="bg-white p-4 rounded-2xl shadow-sm">
-              <QRCodeSVG value={formUrl} size={150} />
-            </div>
-            <p className="mt-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">
-              Aponte a câmera para o QR Code para acessar pelo celular
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

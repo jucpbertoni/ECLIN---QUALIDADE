@@ -62,17 +62,7 @@ const Countdown: React.FC = () => {
           ))}
         </div>
 
-        <div className="pt-2">
-          <div className="flex justify-between items-end mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest opacity-80">Progresso da Auditoria</span>
-            <span className="text-[10px] font-black text-brand-secondary">75%</span>
-          </div>
-          <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-brand-secondary w-[75%] rounded-full shadow-[0_0_10px_rgba(242,125,38,0.5)]"></div>
-          </div>
-        </div>
-
-        <p className="text-[9px] font-medium opacity-70 text-center italic">
+        <p className="text-[9px] font-medium opacity-70 text-center italic mt-6">
           "A qualidade é a nossa prioridade absoluta."
         </p>
       </div>
