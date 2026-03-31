@@ -11,21 +11,39 @@ interface MuralCarouselProps {
 
 const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEditPost, isAdmin }) => {
   const [current, setCurrent] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  
   // Get the 3 most recent posts
   const latestPosts = posts.slice(0, 3);
 
   useEffect(() => {
-    if (latestPosts.length <= 1) return;
+    if (latestPosts.length <= 1 || isPaused) return;
+    
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % latestPosts.length);
-    }, 6000);
+    }, 8000); // Slower transition for better readability
+    
     return () => clearInterval(timer);
-  }, [latestPosts.length]);
+  }, [latestPosts.length, isPaused]);
+
+  // Ensure current index is valid if posts change
+  useEffect(() => {
+    if (current >= latestPosts.length && latestPosts.length > 0) {
+      setCurrent(0);
+    }
+  }, [latestPosts.length, current]);
 
   if (latestPosts.length === 0) return null;
 
+  const nextSlide = () => setCurrent((prev) => (prev + 1) % latestPosts.length);
+  const prevSlide = () => setCurrent((prev) => (prev - 1 + latestPosts.length) % latestPosts.length);
+
   return (
-    <div className="relative w-full overflow-hidden rounded-[3rem] shadow-2xl group border-8 border-white bg-white min-h-[500px]">
+    <div 
+      className="relative w-full overflow-hidden rounded-[3rem] shadow-2xl group border-8 border-white bg-white min-h-[500px]"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
       {latestPosts.map((post, index) => (
         <div
           key={post.id}
@@ -78,18 +96,38 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
         </div>
       ))}
       
+      {/* Navigation Controls */}
       {latestPosts.length > 1 && (
-        <div className="absolute bottom-10 right-10 flex gap-4 z-30 bg-slate-100/80 backdrop-blur-xl px-6 py-3 rounded-full border border-slate-200 shadow-lg">
-          {latestPosts.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrent(index)}
-              className={`h-2 rounded-full transition-all duration-500 ${
-                index === current ? 'bg-brand-secondary w-12' : 'bg-slate-300 hover:bg-slate-400 w-2'
-              }`}
-            />
-          ))}
-        </div>
+        <>
+          <div className="absolute top-1/2 -translate-y-1/2 left-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={prevSlide}
+              className="w-12 h-12 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center text-brand-dark shadow-lg hover:bg-brand-primary hover:text-white transition-all"
+            >
+              <i className="fas fa-chevron-left"></i>
+            </button>
+          </div>
+          <div className="absolute top-1/2 -translate-y-1/2 right-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={nextSlide}
+              className="w-12 h-12 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center text-brand-dark shadow-lg hover:bg-brand-primary hover:text-white transition-all"
+            >
+              <i className="fas fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <div className="absolute bottom-10 right-10 flex gap-4 z-30 bg-slate-100/80 backdrop-blur-xl px-6 py-3 rounded-full border border-slate-200 shadow-lg">
+            {latestPosts.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrent(index)}
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  index === current ? 'bg-brand-secondary w-12' : 'bg-slate-300 hover:bg-slate-400 w-2'
+                }`}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

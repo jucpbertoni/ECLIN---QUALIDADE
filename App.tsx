@@ -180,7 +180,7 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (email && password) {
-      const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br', 'rafael.dias@eclin.eng.br'];
+      const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br', 'rafael.dias@eclin.eng.br', 'juliana.engbio@gmail.com'];
       const isAdmin = admins.includes(email.toLowerCase());
       
       const validPassword = getCurrentPassword();
@@ -212,7 +212,7 @@ const App: React.FC = () => {
     }
 
     localStorage.setItem('eclin_portal_password', newPassword);
-    const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br', 'rafael.dias@eclin.eng.br'];
+    const admins = ['qualidade@eclin.com.br', 'marketing@grupoeclin.com.br', 'rafael.dias@eclin.eng.br', 'juliana.engbio@gmail.com'];
     const isAdmin = admins.includes(email.toLowerCase());
     
     setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });

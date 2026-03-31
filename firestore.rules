@@ -42,12 +42,14 @@ service cloud.firestore {
     // Rules
     match /mural_posts/{postId} {
       allow read: if true; // Publicly readable as requested
-      allow create, update, delete: if isAdmin() && isValidMuralPost(request.resource.data);
+      allow create, update: if isAdmin() && isValidMuralPost(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /documents/{docId} {
       allow read: if true; // Publicly readable as requested
-      allow create, update, delete: if isAdmin() && isValidDocument(request.resource.data);
+      allow create, update: if isAdmin() && isValidDocument(request.resource.data);
+      allow delete: if isAdmin();
     }
     
     // Default deny
