@@ -48,7 +48,11 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
 
   if (latestPosts.length === 0) return null;
 
-  const post = latestPosts[current];
+  // Ensure we have a valid post even if 'current' is temporarily out of bounds
+  const safeIndex = current >= latestPosts.length ? 0 : current;
+  const post = latestPosts[safeIndex];
+
+  if (!post) return null;
 
   return (
     <div 
