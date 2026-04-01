@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, QualityDocument, MuralPost } from './types.ts';
 import QualityAssistant from './components/QualityAssistant.tsx';
 import IncidentNotification from './components/IncidentNotification.tsx';
@@ -89,7 +89,10 @@ const App: React.FC = () => {
     const muralQuery = query(collection(db, 'mural_posts'), orderBy('date', 'desc'));
     const unsubMural = onSnapshot(muralQuery, (snapshot) => {
       const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
-      // If empty, initialize with default config posts
+      
+      setMuralPosts(posts);
+
+      // If empty, seed with default posts
       if (posts.length === 0) {
         CONFIG.muralPosts.forEach(async (post) => {
           try {
@@ -99,13 +102,14 @@ const App: React.FC = () => {
             console.error("Error initializing mural posts", e);
           }
         });
-      } else {
-        setMuralPosts(posts);
       }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'mural_posts'));
 
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QualityDocument));
+      
+      setDocuments(docs);
+
       if (docs.length === 0) {
         const initialDocs = [
           { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01', area: 'Gestão de Qualidade e Biossegurança', expirationDate: '2026-03-01' },
@@ -120,8 +124,6 @@ const App: React.FC = () => {
             console.error("Error initializing documents", e);
           }
         });
-      } else {
-        setDocuments(docs);
       }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'documents'));
 
@@ -284,14 +286,18 @@ const App: React.FC = () => {
     }
   };
 
-  const startEditingPost = (post: MuralPost) => {
+  const startEditingPost = useCallback((post: MuralPost) => {
     setEditingPost(post);
     setNewPostTitle(post.title);
     setNewPostContent(post.content);
     setNewPostImage(post.image || '');
     setIsAddingPost(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
+
+  const handleSelectPost = useCallback((post: MuralPost) => {
+    setSelectedPost(post);
+  }, []);
 
   const handleDeletePost = async (id: string) => {
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
@@ -347,7 +353,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-brand-light/40 text-slate-900 font-sans">
       {notification && (
-        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-right-10 duration-300">
+        <div className="fixed top-6 right-6 z-50">
           <div className="bg-brand-primary text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3 border-l-4 border-brand-secondary">
             <i className="fas fa-check-circle text-brand-secondary"></i>
             <span className="text-sm font-medium">{notification}</span>
@@ -413,13 +419,13 @@ const App: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-10">
             {activeTab === 'mural' && (
-              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-5">
+              <div className="space-y-12">
                 <div className="flex items-end justify-between border-b-4 border-brand-dark pb-6">
                   <div className="flex items-center gap-6">
                     <img 
                       src="https://lh3.googleusercontent.com/d/1jsycEnW0eYwgRkvhw6mfckuDVeBrpacT" 
                       alt="Selo Qualidade" 
-                      className="w-24 h-24 object-contain animate-pulse"
+                      className="w-24 h-24 object-contain"
                       referrerPolicy="no-referrer"
                     />
                     <div>
@@ -449,7 +455,7 @@ const App: React.FC = () => {
 
                 <MuralCarousel 
                   posts={muralPosts} 
-                  onSelectPost={setSelectedPost} 
+                  onSelectPost={handleSelectPost} 
                   onEditPost={startEditingPost}
                   isAdmin={user?.role === 'admin'}
                 />
@@ -540,45 +546,11 @@ const App: React.FC = () => {
                     </form>
                   </div>
                 )}
-
-                <div className="grid grid-cols-1 gap-16">
-                  {/* Optional: Show other posts below if needed, or just the carousel */}
-                  {muralPosts.length > 3 && (
-                    <div className="pt-10 border-t border-slate-100">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-10">Histórico de Publicações</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {muralPosts.slice(3).map((post) => (
-                          <div key={post.id} className="bg-white p-6 rounded-3xl border border-slate-100 hover:border-brand-secondary/30 transition-all group shadow-sm hover:shadow-md">
-                            <div className="aspect-video rounded-2xl overflow-hidden mb-4">
-                              <img src={post.image || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                            </div>
-                            <div className="space-y-3">
-                              <span className="text-[8px] font-black text-brand-secondary uppercase tracking-widest">{post.date}</span>
-                              <h5 className="text-lg font-black text-brand-dark leading-tight line-clamp-1">{post.title}</h5>
-                              <p className="text-xs text-slate-500 line-clamp-2 font-medium">{post.content}</p>
-                              <div className="pt-2 flex justify-between items-center">
-                                <div className="flex gap-4">
-                                  <button onClick={() => setSelectedPost(post)} className="text-[9px] font-black text-brand-primary uppercase tracking-widest border-b border-brand-primary/30 pb-0.5">Ver Post</button>
-                                  {user?.role === 'admin' && (
-                                    <button onClick={() => startEditingPost(post)} className="text-[9px] font-black text-brand-secondary uppercase tracking-widest border-b border-brand-secondary/30 pb-0.5">Editar</button>
-                                  )}
-                                </div>
-                                {user?.role === 'admin' && (
-                                  <button onClick={() => handleDeletePost(post.id)} className="text-red-400 hover:text-red-600 transition-colors"><i className="fas fa-trash-alt"></i></button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
             {activeTab === 'public' && user && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5">
+              <div className="space-y-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                   <div>
                     <h2 className="text-3xl font-black text-brand-dark tracking-tight">Acervo {CONFIG.brandName}</h2>
@@ -729,7 +701,7 @@ const App: React.FC = () => {
             )}
 
             {activeTab === 'upload' && user && (
-              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-5">
+              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
                     <div className="bg-brand-primary/10 w-14 h-14 rounded-2xl flex items-center justify-center text-brand-primary">
@@ -766,7 +738,7 @@ const App: React.FC = () => {
             )}
 
             {activeTab === 'signed' && user && (
-              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-5">
+              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 brand-gradient opacity-10 rounded-bl-full"></div>
                 <div className="flex items-center gap-5 relative z-10">
                   <div className="bg-brand-secondary/10 w-14 h-14 rounded-2xl flex items-center justify-center text-brand-secondary">
@@ -870,7 +842,7 @@ const App: React.FC = () => {
       {showChangePassword && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-brand-dark/90 backdrop-blur-md"></div>
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative z-10 animate-in zoom-in-95 duration-500">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative z-10">
             <div className="text-center space-y-4 mb-8">
               <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary mx-auto">
                 <i className="fas fa-shield-alt text-2xl"></i>
@@ -914,10 +886,10 @@ const App: React.FC = () => {
       {selectedPost && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
           <div 
-            className="absolute inset-0 bg-brand-dark/80 backdrop-blur-sm animate-in fade-in duration-300"
+            className="absolute inset-0 bg-brand-dark/80 backdrop-blur-sm"
             onClick={() => setSelectedPost(null)}
           ></div>
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-10 duration-500">
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 flex flex-col">
             <button 
               onClick={() => setSelectedPost(null)}
               className="absolute top-6 right-6 w-12 h-12 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-brand-dark hover:bg-brand-primary hover:text-white transition-all z-20"
