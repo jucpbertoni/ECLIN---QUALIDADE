@@ -32,13 +32,6 @@ export const CONFIG = {
       content: 'Programe-se, no próximo dia 14 teremos o treinamento ONLINE do Sistema de Gestão da Qualidade da ECLIN, com atualizações para você aplicar no seu dia a dia!',
       date: '2026-04-14',
       image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&q=80&w=800'
-    },
-    {
-      id: '1',
-      title: 'Lançamento da Campanha Qualidade em Ação e nosso Mascote "Selo Azul"',
-      content: 'Iniciamos hoje nossa nova nova campanha rumo à excelência na prestação de serviços para a Saúde. O mural será nosso ponto de encontro para novidades e conquistas da equipe ECLIN.',
-      date: '2026-02-06',
-      image: 'https://lh3.googleusercontent.com/d/1MHY3wc3GseX8pPFbzVDewqH7kaYDTWyD'
     }
   ],
   
