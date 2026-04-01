@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MuralPost } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface MuralCarouselProps {
   posts: MuralPost[];
@@ -14,17 +15,29 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
   const [isPaused, setIsPaused] = useState(false);
   
   // Get the 3 most recent posts
-  const latestPosts = posts.slice(0, 3);
+  const latestPosts = useMemo(() => posts.slice(0, 3), [posts]);
+
+  const nextSlide = useCallback(() => {
+    if (latestPosts.length > 0) {
+      setCurrent((prev) => (prev + 1) % latestPosts.length);
+    }
+  }, [latestPosts.length]);
+
+  const prevSlide = useCallback(() => {
+    if (latestPosts.length > 0) {
+      setCurrent((prev) => (prev - 1 + latestPosts.length) % latestPosts.length);
+    }
+  }, [latestPosts.length]);
 
   useEffect(() => {
     if (latestPosts.length <= 1 || isPaused) return;
     
     const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % latestPosts.length);
-    }, 8000); // Slower transition for better readability
+      nextSlide();
+    }, 8000); // 8 seconds per slide
     
     return () => clearInterval(timer);
-  }, [latestPosts.length, isPaused]);
+  }, [latestPosts.length, isPaused, nextSlide]);
 
   // Ensure current index is valid if posts change
   useEffect(() => {
@@ -35,8 +48,7 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
 
   if (latestPosts.length === 0) return null;
 
-  const nextSlide = () => setCurrent((prev) => (prev + 1) % latestPosts.length);
-  const prevSlide = () => setCurrent((prev) => (prev - 1 + latestPosts.length) % latestPosts.length);
+  const post = latestPosts[current];
 
   return (
     <div 
@@ -44,39 +56,64 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {latestPosts.map((post, index) => (
-        <div
+      <AnimatePresence mode="wait">
+        <motion.div
           key={post.id}
-          className={`flex flex-col md:flex-row transition-all duration-1000 ease-in-out ${
-            index === current ? 'opacity-100 translate-x-0 relative' : 'opacity-0 translate-x-10 absolute inset-0 pointer-events-none'
-          }`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.8, ease: "easeInOut" }}
+          className="flex flex-col md:flex-row w-full h-full"
         >
           {/* Image Section - 9:16 Aspect Ratio */}
           <div className="w-full md:w-2/5 lg:w-1/3 aspect-[9/16] overflow-hidden">
-            <img
+            <motion.img
+              initial={{ scale: 1.1 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 1.5 }}
               src={post.image || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=1200'}
               alt={post.title}
-              className="w-full h-full object-cover transition-transform duration-[2000ms] group-hover:scale-110"
+              className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
           </div>
 
           {/* Text Content Section - External to Image */}
           <div className="flex-1 flex flex-col justify-center p-8 md:p-16 lg:p-20 bg-white">
-            <div className="flex items-center gap-4 mb-6 animate-in slide-in-from-right-10 duration-700">
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="flex items-center gap-4 mb-6"
+            >
               <span className="w-12 h-[3px] bg-brand-secondary rounded-full"></span>
               <span className="text-xs font-black text-brand-secondary uppercase tracking-[0.5em]">{post.date}</span>
-            </div>
+            </motion.div>
             
-            <h2 className="text-3xl md:text-5xl lg:text-6xl font-black mb-6 text-brand-dark leading-[1.1] tracking-tighter uppercase animate-in slide-in-from-right-10 duration-1000">
+            <motion.h2 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="text-3xl md:text-5xl lg:text-6xl font-black mb-6 text-brand-dark leading-[1.1] tracking-tighter uppercase"
+            >
               {post.title}
-            </h2>
+            </motion.h2>
             
-            <p className="text-base md:text-lg text-slate-600 font-medium max-w-2xl line-clamp-6 mb-10 animate-in slide-in-from-right-10 duration-1200">
+            <motion.p 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="text-base md:text-lg text-slate-600 font-medium max-w-2xl line-clamp-6 mb-10"
+            >
               {post.content}
-            </p>
+            </motion.p>
             
-            <div className="flex gap-4 animate-in zoom-in-50 duration-1500">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5, duration: 0.5 }}
+              className="flex gap-4"
+            >
               <button 
                 onClick={() => onSelectPost(post)}
                 className="w-fit brand-gradient text-white px-10 py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:scale-105 transition-all shadow-xl shadow-brand-primary/30"
@@ -91,10 +128,10 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
                   Editar Post
                 </button>
               )}
-            </div>
+            </motion.div>
           </div>
-        </div>
-      ))}
+        </motion.div>
+      </AnimatePresence>
       
       {/* Navigation Controls */}
       {latestPosts.length > 1 && (
