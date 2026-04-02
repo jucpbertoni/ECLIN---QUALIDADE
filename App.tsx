@@ -70,7 +70,6 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 interface DocumentCardProps {
@@ -331,6 +330,7 @@ const App: React.FC = () => {
       setExpirationDate('');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'documents');
+      setNotification("Erro ao enviar documento. Verifique sua conexão ou permissões.");
     }
   };
 
@@ -361,6 +361,7 @@ const App: React.FC = () => {
       setEditingPost(null);
     } catch (error) {
       handleFirestoreError(error, editingPost ? OperationType.UPDATE : OperationType.CREATE, 'mural_posts');
+      setNotification("Erro ao salvar post no mural. Verifique os campos e tente novamente.");
     }
   };
 
@@ -384,6 +385,7 @@ const App: React.FC = () => {
         setNotification("Post removido com sucesso.");
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `mural_posts/${id}`);
+        setNotification("Erro ao excluir post. Verifique suas permissões.");
       }
     }
   }, []);
@@ -395,6 +397,7 @@ const App: React.FC = () => {
         setNotification("Documento removido com sucesso.");
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
+        setNotification("Erro ao excluir documento. Verifique suas permissões.");
       }
     }
   }, []);
@@ -410,6 +413,7 @@ const App: React.FC = () => {
         setNotification("Documento atualizado com sucesso.");
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
+        setNotification("Erro ao atualizar documento. Verifique suas permissões.");
       }
     }
   }, [documents]);
