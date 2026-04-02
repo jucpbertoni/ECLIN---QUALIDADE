@@ -72,6 +72,67 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+interface DocumentCardProps {
+  doc: QualityDocument;
+  user: User | null;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  getExpirationAlert: (dateStr?: string) => { color: string; label: string; icon: string } | null;
+}
+
+const DocumentCard: React.FC<DocumentCardProps> = ({ doc, user, onEdit, onDelete, getExpirationAlert }) => {
+  const alert = getExpirationAlert(doc.expirationDate);
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-brand-secondary/30 transition-all group flex flex-col gap-4 shadow-sm hover:shadow-md relative overflow-hidden">
+      <div className="flex items-start justify-between">
+        <div className="bg-brand-primary/5 p-3 rounded-xl text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-all">
+          <i className="fas fa-file-pdf text-xl"></i>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          {alert && (
+            <div className={`flex items-center gap-1.5 ${alert.color} text-[8px] font-black uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md`}>
+              <i className={`fas ${alert.icon}`}></i>
+              {alert.label}
+            </div>
+          )}
+          {user?.role === 'admin' && (
+            <div className="flex gap-2">
+              <button 
+                onClick={() => onEdit(doc.id)}
+                className="text-slate-400 hover:text-brand-primary transition-colors p-1"
+                title="Editar Título"
+              >
+                <i className="fas fa-edit"></i>
+              </button>
+              <button 
+                onClick={() => onDelete(doc.id)}
+                className="text-red-400 hover:text-red-600 transition-colors p-1"
+                title="Excluir Documento"
+              >
+                <i className="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="font-black text-slate-800 text-sm mb-2 group-hover:text-brand-primary transition-colors leading-tight">{doc.title}</h4>
+        <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+          <span>Validade: {doc.expirationDate}</span>
+          <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+          <span>{doc.uploadDate}</span>
+        </div>
+      </div>
+      <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
+        <span className="text-[8px] font-black text-brand-secondary uppercase tracking-widest">Acesso Restrito</span>
+        <button className="text-brand-primary hover:text-brand-dark transition-colors">
+          <i className="fas fa-download"></i>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<'public' | 'upload' | 'signed' | 'mural'>('mural');
@@ -90,7 +151,11 @@ const App: React.FC = () => {
     const unsubMural = onSnapshot(muralQuery, (snapshot) => {
       const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
       
-      setMuralPosts(posts);
+      // Estabiliza o estado para evitar re-renderizações se os dados forem idênticos
+      setMuralPosts(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(posts)) return prev;
+        return posts;
+      });
 
       // If empty, seed with default posts
       if (posts.length === 0) {
@@ -108,7 +173,11 @@ const App: React.FC = () => {
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QualityDocument));
       
-      setDocuments(docs);
+      // Estabiliza o estado para evitar re-renderizações se os dados forem idênticos
+      setDocuments(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(docs)) return prev;
+        return docs;
+      });
 
       if (docs.length === 0) {
         const initialDocs = [
@@ -600,58 +669,16 @@ const App: React.FC = () => {
                         {area}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {areaDocs.map(doc => {
-                          const alert = getExpirationAlert(doc.expirationDate);
-                          return (
-                            <div key={doc.id} className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-brand-secondary/30 transition-all group flex flex-col gap-4 shadow-sm hover:shadow-md relative overflow-hidden">
-                              <div className="flex items-start justify-between">
-                                <div className="bg-brand-primary/5 p-3 rounded-xl text-brand-primary group-hover:bg-brand-primary group-hover:text-white transition-all">
-                                  <i className="fas fa-file-pdf text-xl"></i>
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                  {alert && (
-                                    <div className={`flex items-center gap-1.5 ${alert.color} text-[8px] font-black uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md`}>
-                                      <i className={`fas ${alert.icon}`}></i>
-                                      {alert.label}
-                                    </div>
-                                  )}
-                                  {user?.role === 'admin' && (
-                                    <div className="flex gap-2">
-                                      <button 
-                                        onClick={() => handleEditDocument(doc.id)}
-                                        className="text-slate-400 hover:text-brand-primary transition-colors p-1"
-                                        title="Editar Título"
-                                      >
-                                        <i className="fas fa-edit"></i>
-                                      </button>
-                                      <button 
-                                        onClick={() => handleDeleteDocument(doc.id)}
-                                        className="text-red-400 hover:text-red-600 transition-colors p-1"
-                                        title="Excluir Documento"
-                                      >
-                                        <i className="fas fa-trash-alt"></i>
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-black text-slate-800 text-sm mb-2 group-hover:text-brand-primary transition-colors leading-tight">{doc.title}</h4>
-                                <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                  <span>Validade: {doc.expirationDate}</span>
-                                  <span className="w-1 h-1 rounded-full bg-slate-200"></span>
-                                  <span>{doc.uploadDate}</span>
-                                </div>
-                              </div>
-                              <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
-                                <span className="text-[8px] font-black text-brand-secondary uppercase tracking-widest">Acesso Restrito</span>
-                                <button className="text-brand-primary hover:text-brand-dark transition-colors">
-                                  <i className="fas fa-download"></i>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {areaDocs.map(doc => (
+                          <DocumentCard 
+                            key={doc.id}
+                            doc={doc}
+                            user={user}
+                            onEdit={handleEditDocument}
+                            onDelete={handleDeleteDocument}
+                            getExpirationAlert={getExpirationAlert}
+                          />
+                        ))}
                       </div>
                     </div>
                   );

@@ -44,7 +44,7 @@ const QualityAssistant: React.FC = () => {
       </form>
 
       {response && (
-        <div className="p-4 bg-white/10 rounded-xl border border-white/5 animate-in fade-in zoom-in duration-300">
+        <div className="p-4 bg-white/10 rounded-xl border border-white/5">
           <div className="flex items-center gap-2 mb-2 text-brand-secondary">
             <i className="fas fa-comment-medical text-xs"></i>
             <span className="text-[9px] font-black uppercase tracking-widest">Resposta Técnica</span>

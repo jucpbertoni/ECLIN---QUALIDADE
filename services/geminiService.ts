@@ -2,11 +2,14 @@
 import { GoogleGenAI } from "@google/genai";
 
 export const askQualityAssistant = async (prompt: string): Promise<string> => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Tenta obter a chave de múltiplas fontes possíveis no ambiente Vite/Node
+  const apiKey = process.env.GEMINI_API_KEY || 
+                 process.env.API_KEY || 
+                 (import.meta as any).env?.VITE_GEMINI_API_KEY;
   
   if (!apiKey) {
-    console.error("GEMINI_API_KEY não encontrada no ambiente.");
-    return "O assistente está offline. Verifique as configurações de chave API.";
+    console.error("GEMINI_API_KEY não encontrada. Verifique as variáveis de ambiente.");
+    return "A IAECLIN está temporariamente offline (Chave API não configurada). Por favor, contate o administrador do sistema.";
   }
 
   try {
