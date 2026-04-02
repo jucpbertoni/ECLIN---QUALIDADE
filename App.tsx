@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { User, QualityDocument, MuralPost } from './types.ts';
 import QualityAssistant from './components/QualityAssistant.tsx';
 import IncidentNotification from './components/IncidentNotification.tsx';
@@ -8,6 +8,7 @@ import Logo from './components/Logo.tsx';
 import MuralCarousel from './components/MuralCarousel.tsx';
 import { CONFIG } from './config.ts';
 import { db, auth } from './src/firebase.ts';
+import { signInAnonymously } from 'firebase/auth';
 import { 
   collection, 
   onSnapshot, 
@@ -80,7 +81,7 @@ interface DocumentCardProps {
   getExpirationAlert: (dateStr?: string) => { color: string; label: string; icon: string } | null;
 }
 
-const DocumentCard: React.FC<DocumentCardProps> = ({ doc, user, onEdit, onDelete, getExpirationAlert }) => {
+const DocumentCard = memo<DocumentCardProps>(({ doc, user, onEdit, onDelete, getExpirationAlert }) => {
   const alert = getExpirationAlert(doc.expirationDate);
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-brand-secondary/30 transition-all group flex flex-col gap-4 shadow-sm hover:shadow-md relative overflow-hidden">
@@ -131,7 +132,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({ doc, user, onEdit, onDelete
       </div>
     </div>
   );
-};
+});
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -144,9 +145,15 @@ const App: React.FC = () => {
   
   const [muralPosts, setMuralPosts] = useState<MuralPost[]>([]);
   const [documents, setDocuments] = useState<QualityDocument[]>([]);
+  
+  const hasSeededMural = useRef(false);
+  const hasSeededDocs = useRef(false);
 
   // Firebase Real-time Sync
   useEffect(() => {
+    // Sign in anonymously to allow security rules to work
+    signInAnonymously(auth).catch(err => console.error("Auth error", err));
+
     const muralQuery = query(collection(db, 'mural_posts'), orderBy('date', 'desc'));
     const unsubMural = onSnapshot(muralQuery, (snapshot) => {
       const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
@@ -157,8 +164,9 @@ const App: React.FC = () => {
         return posts;
       });
 
-      // If empty, seed with default posts
-      if (posts.length === 0) {
+      // If empty and not yet seeded in this session, seed with default posts
+      if (posts.length === 0 && !hasSeededMural.current) {
+        hasSeededMural.current = true;
         CONFIG.muralPosts.forEach(async (post) => {
           try {
             const { id, ...postData } = post;
@@ -179,7 +187,8 @@ const App: React.FC = () => {
         return docs;
       });
 
-      if (docs.length === 0) {
+      if (docs.length === 0 && !hasSeededDocs.current) {
+        hasSeededDocs.current = true;
         const initialDocs = [
           { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01', area: 'Gestão de Qualidade e Biossegurança', expirationDate: '2026-03-01' },
           { id: '2', title: 'Protocolo de Identificação do Paciente', type: 'pdf', status: 'published', uploader: 'Comitê Gestor', uploadDate: '2024-03-15', area: 'Liderança Organizacional', expirationDate: '2026-03-15' },
@@ -368,7 +377,7 @@ const App: React.FC = () => {
     setSelectedPost(post);
   }, []);
 
-  const handleDeletePost = async (id: string) => {
+  const handleDeletePost = useCallback(async (id: string) => {
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
       try {
         await deleteDoc(doc(db, 'mural_posts', id));
@@ -377,9 +386,9 @@ const App: React.FC = () => {
         handleFirestoreError(error, OperationType.DELETE, `mural_posts/${id}`);
       }
     }
-  };
+  }, []);
 
-  const handleDeleteDocument = async (id: string) => {
+  const handleDeleteDocument = useCallback(async (id: string) => {
     if (window.confirm("Tem certeza que deseja excluir este documento?")) {
       try {
         await deleteDoc(doc(db, 'documents', id));
@@ -388,9 +397,9 @@ const App: React.FC = () => {
         handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
       }
     }
-  };
+  }, []);
 
-  const handleEditDocument = async (id: string) => {
+  const handleEditDocument = useCallback(async (id: string) => {
     const docItem = documents.find(d => d.id === id);
     if (!docItem) return;
     
@@ -403,9 +412,9 @@ const App: React.FC = () => {
         handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
       }
     }
-  };
+  }, [documents]);
 
-  const getExpirationAlert = (dateStr?: string) => {
+  const getExpirationAlert = useCallback((dateStr?: string) => {
     if (!dateStr) return null;
     const expDate = new Date(dateStr);
     const today = new Date();
@@ -417,7 +426,7 @@ const App: React.FC = () => {
     if (diffDays <= 30) return { color: 'text-orange-500', label: 'VENCE EM 30 DIAS', icon: 'fa-clock' };
     if (diffDays <= 60) return { color: 'text-yellow-600', label: 'VENCE EM 60 DIAS', icon: 'fa-clock' };
     return null;
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-brand-light/40 text-slate-900 font-sans">

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { MuralPost } from '../types';
 
 interface MuralCarouselProps {
@@ -9,7 +9,7 @@ interface MuralCarouselProps {
   isAdmin?: boolean;
 }
 
-const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEditPost, isAdmin }) => {
+const MuralCarousel = memo<MuralCarouselProps>(({ posts, onSelectPost, onEditPost, isAdmin }) => {
   const [page, setPage] = useState(0);
   const postsPerPage = 6; // 2 rows of 3 posts
   
@@ -83,6 +83,6 @@ const MuralCarousel: React.FC<MuralCarouselProps> = ({ posts, onSelectPost, onEd
       )}
     </div>
   );
-};
+});
 
 export default MuralCarousel;

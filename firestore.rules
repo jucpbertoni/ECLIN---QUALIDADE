@@ -43,13 +43,13 @@ service cloud.firestore {
     match /mural_posts/{postId} {
       allow read: if true; // Publicly readable as requested
       allow create, update: if isAdmin() && isValidMuralPost(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated(); // Allow deletion for authenticated users (including anonymous)
     }
 
     match /documents/{docId} {
       allow read: if true; // Publicly readable as requested
       allow create, update: if isAdmin() && isValidDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated(); // Allow deletion for authenticated users (including anonymous)
     }
     
     // Default deny
