@@ -113,9 +113,22 @@ const DocumentCard = memo<DocumentCardProps>(({ doc, user, onEdit, onDelete, get
       </div>
       <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
         <span className="text-[8px] font-black text-brand-secondary uppercase tracking-widest">Acesso Restrito</span>
-        <button className="text-brand-primary hover:text-brand-dark transition-colors">
-          <i className="fas fa-download"></i>
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => (window as any).handleOpen(doc)}
+            className="text-brand-secondary hover:text-brand-dark transition-colors"
+            title="Abrir para Leitura"
+          >
+            <i className="fas fa-eye"></i>
+          </button>
+          <button 
+            onClick={() => (window as any).handleDownload(doc)}
+            className="text-brand-primary hover:text-brand-dark transition-colors"
+            title="Baixar Documento"
+          >
+            <i className="fas fa-download"></i>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -135,6 +148,7 @@ const App: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+  const [muralHeaderError, setMuralHeaderError] = useState(false);
   
   useEffect(() => {
     setSelectedFile(null);
@@ -150,13 +164,8 @@ const App: React.FC = () => {
         await signInAnonymously(auth);
         setIsFirebaseReady(true);
       } catch (err: any) {
-        console.error("Auth error", err);
-        if (err.code === 'auth/admin-restricted-operation') {
-          setNotification("Atenção: O 'Anonymous Auth' precisa ser ativado no Console do Firebase (Authentication > Sign-in method).");
-        } else {
-          setNotification("Erro de conexão. Verifique sua internet.");
-        }
-        // Mesmo com erro de auth, permitimos que o sistema tente operar (regras de segurança foram relaxadas temporariamente)
+        // Silently handle auth errors to avoid confusing the user, 
+        // as we have relaxed firestore rules as a fallback.
         setIsFirebaseReady(true); 
       }
     };
@@ -299,33 +308,53 @@ const App: React.FC = () => {
     
     const file = selectedFile;
 
+    // Firestore has a 1MB limit per document.
+    if (file.size > 1024 * 1024) {
+      setNotification("O arquivo é muito grande (máximo 1MB). Por favor, utilize arquivos menores ou entre em contato com o suporte.");
+      return;
+    }
+
     if (type === 'pdf' && !expirationDate) {
       setNotification("Por favor, selecione a data de validade para o documento oficial.");
       return;
     }
 
     setIsUploading(true);
-    const newDoc = {
-      title: file.name,
-      type: type,
-      status: type === 'docx' ? 'pending' : 'published',
-      uploader: user?.name || `Equipe ${CONFIG.brandName}`,
-      uploadDate: new Date().toISOString().split('T')[0],
-      area: type === 'pdf' ? selectedArea : undefined,
-      expirationDate: type === 'pdf' ? expirationDate : undefined
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Data = e.target?.result as string;
+      
+      const newDoc = {
+        title: file.name,
+        type: type,
+        status: type === 'docx' ? 'pending' : 'published',
+        uploader: user?.name || `Equipe ${CONFIG.brandName}`,
+        uploadDate: new Date().toISOString().split('T')[0],
+        area: type === 'pdf' ? selectedArea : undefined,
+        expirationDate: type === 'pdf' ? expirationDate : undefined,
+        fileData: base64Data // Store file content for download/preview
+      };
+
+      try {
+        await addDoc(collection(db, 'documents'), newDoc);
+        setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
+        setExpirationDate('');
+        setSelectedFile(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'documents');
+        setNotification("Erro ao salvar no banco de dados. Verifique suas permissões.");
+      } finally {
+        setIsUploading(false);
+      }
     };
 
-    try {
-      await addDoc(collection(db, 'documents'), newDoc);
-      setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
-      setExpirationDate('');
-      setSelectedFile(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'documents');
-      setNotification("Erro ao salvar no banco de dados. Verifique suas permissões.");
-    } finally {
+    reader.onerror = () => {
+      setNotification("Erro ao ler o arquivo. Tente novamente.");
       setIsUploading(false);
-    }
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleAddPost = async (e: React.FormEvent) => {
@@ -426,6 +455,37 @@ const App: React.FC = () => {
     return null;
   }, []);
 
+  const handleDownload = useCallback((docItem: QualityDocument) => {
+    if (!docItem.fileData) {
+      setNotification("Este documento não possui dados para download.");
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = docItem.fileData;
+    link.download = docItem.title;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
+
+  const handleOpen = useCallback((docItem: QualityDocument) => {
+    if (!docItem.fileData) {
+      setNotification("Este documento não possui dados para visualização.");
+      return;
+    }
+    const win = window.open();
+    if (win) {
+      win.document.write(`<iframe src="${docItem.fileData}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+    } else {
+      setNotification("O navegador bloqueou a abertura da nova janela. Por favor, permita pop-ups.");
+    }
+  }, []);
+
+  useEffect(() => {
+    (window as any).handleDownload = handleDownload;
+    (window as any).handleOpen = handleOpen;
+  }, [handleDownload, handleOpen]);
+
   return (
     <div className="min-h-screen bg-brand-light/40 text-slate-900 font-sans">
       {notification && (
@@ -498,12 +558,19 @@ const App: React.FC = () => {
               <div className="space-y-12">
                 <div className="flex items-end justify-between border-b-4 border-brand-dark pb-6">
                   <div className="flex items-center gap-6">
-                    <img 
-                      src="https://lh3.googleusercontent.com/d/1jsycEnW0eYwgRkvhw6mfckuDVeBrpacT" 
-                      alt="Selo Qualidade" 
-                      className="w-24 h-24 object-contain"
-                      referrerPolicy="no-referrer"
-                    />
+                    <div className="w-24 h-24 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary overflow-hidden border-2 border-brand-primary/20">
+                      {!muralHeaderError ? (
+                        <img 
+                          src="https://lh3.googleusercontent.com/d/1jsycEnW0eYwgRkvhw6mfckuDVeBrpacT" 
+                          alt="Selo Qualidade" 
+                          className="w-16 h-16 object-contain"
+                          onError={() => setMuralHeaderError(true)}
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <i className="fas fa-award text-4xl"></i>
+                      )}
+                    </div>
                     <div>
                       <span className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.4em] mb-2 block">Mural da Qualidade</span>
                       <h2 className="text-6xl font-black text-blue-600 tracking-tighter uppercase leading-none">Qualidade <br/>em Ação</h2>
