@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { User, QualityDocument, MuralPost } from './types.ts';
 import QualityAssistant from './components/QualityAssistant.tsx';
 import IncidentNotification from './components/IncidentNotification.tsx';
@@ -134,6 +134,7 @@ const App: React.FC = () => {
   const [documents, setDocuments] = useState<QualityDocument[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   
   useEffect(() => {
     setSelectedFile(null);
@@ -144,46 +145,35 @@ const App: React.FC = () => {
 
   // Firebase Real-time Sync
   useEffect(() => {
-    // Sign in anonymously to allow security rules to work
-    signInAnonymously(auth)
-      .then(() => console.log("Auth success"))
-      .catch(err => {
+    const initFirebase = async () => {
+      try {
+        await signInAnonymously(auth);
+        setIsFirebaseReady(true);
+      } catch (err) {
         console.error("Auth error", err);
-        setNotification("Atenção: Erro de conexão com o banco de dados. Verifique sua internet.");
-      });
+        setNotification("Erro de conexão. Verifique sua internet.");
+      }
+    };
+
+    initFirebase();
 
     const muralQuery = query(collection(db, 'mural_posts'), orderBy('date', 'desc'));
     const unsubMural = onSnapshot(muralQuery, (snapshot) => {
       const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
-      
-      // Estabiliza o estado para evitar re-renderizações se os dados forem idênticos
-      setMuralPosts(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(posts)) return prev;
-        return posts;
-      });
+      setMuralPosts(posts);
 
-      // If empty and not yet seeded in this session, seed with default posts
       if (posts.length === 0 && !hasSeededMural.current) {
         hasSeededMural.current = true;
         CONFIG.muralPosts.forEach(async (post) => {
-          try {
-            const { id, ...postData } = post;
-            await setDoc(doc(db, 'mural_posts', id), postData);
-          } catch (e) {
-            console.error("Error initializing mural posts", e);
-          }
+          const { id, ...postData } = post;
+          await setDoc(doc(db, 'mural_posts', id), postData).catch(console.error);
         });
       }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'mural_posts'));
+    });
 
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QualityDocument));
-      
-      // Estabiliza o estado para evitar re-renderizações se os dados forem idênticos
-      setDocuments(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(docs)) return prev;
-        return docs;
-      });
+      setDocuments(docs);
 
       if (docs.length === 0 && !hasSeededDocs.current) {
         hasSeededDocs.current = true;
@@ -193,27 +183,11 @@ const App: React.FC = () => {
           { id: '3', title: `Política de Descarte de Resíduos ${CONFIG.brandName}`, type: 'pdf', status: 'published', uploader: 'Engenharia Clínica', uploadDate: '2024-03-20', area: 'Engenharia Clínica', expirationDate: '2026-03-20' },
         ];
         initialDocs.forEach(async (docItem) => {
-          try {
-            const { id, ...docData } = docItem;
-            await setDoc(doc(db, 'documents', id), docData);
-          } catch (e) {
-            console.error("Error initializing documents", e);
-          }
+          const { id, ...docData } = docItem;
+          await setDoc(doc(db, 'documents', id), docData).catch(console.error);
         });
       }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'documents'));
-
-    // Test connection
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
-        }
-      }
-    }
-    testConnection();
+    });
 
     return () => {
       unsubMural();
@@ -227,6 +201,19 @@ const App: React.FC = () => {
   const [isAddingPost, setIsAddingPost] = useState(false);
   const [editingPost, setEditingPost] = useState<MuralPost | null>(null);
 
+  const [notification, setNotification] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Memorização para evitar flickering
+  const filteredDocuments = useMemo(() => {
+    return documents.filter(d => 
+      (selectedFilterArea === 'Todas as áreas' || d.area === selectedFilterArea) &&
+      d.title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [documents, selectedFilterArea, searchTerm]);
+
+  const [selectedPost, setSelectedPost] = useState<MuralPost | null>(null);
+
   const handleMuralImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -237,9 +224,6 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
-  const [notification, setNotification] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPost, setSelectedPost] = useState<MuralPost | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -625,7 +609,11 @@ const App: React.FC = () => {
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary min-h-[100px]"
                         required
                       />
-                      <button type="submit" className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs">
+                      <button 
+                        type="submit" 
+                        disabled={!isFirebaseReady}
+                        className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs disabled:opacity-50"
+                      >
                         {editingPost ? 'Salvar Alterações' : 'Publicar no Mural'}
                       </button>
                     </form>
@@ -672,10 +660,9 @@ const App: React.FC = () => {
                 </div>
 
                 {CONFIG.areas.filter(area => selectedFilterArea === 'Todas as áreas' || selectedFilterArea === area).map(area => {
-                  const areaDocs = documents.filter(d => 
+                  const areaDocs = filteredDocuments.filter(d => 
                     d.status === 'published' && 
-                    d.area === area &&
-                    (d.title.toLowerCase().includes(searchTerm.toLowerCase()) || area.toLowerCase().includes(searchTerm.toLowerCase()))
+                    d.area === area
                   );
                   if (areaDocs.length === 0) return null;
                   return (
@@ -749,7 +736,7 @@ const App: React.FC = () => {
                           </div>
                           <button 
                             onClick={() => handleFileUpload('pdf')} 
-                            disabled={isUploading}
+                            disabled={isUploading || !isFirebaseReady}
                             className="px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all disabled:opacity-50"
                           >
                             {isUploading ? 'Enviando...' : 'Confirmar e Publicar'}
@@ -807,7 +794,7 @@ const App: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => handleFileUpload('docx')} 
-                        disabled={isUploading}
+                        disabled={isUploading || !isFirebaseReady}
                         className="px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10 disabled:opacity-50"
                       >
                         {isUploading ? 'Enviando...' : 'Enviar para Revisão'}

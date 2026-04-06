@@ -33,23 +33,22 @@ service cloud.firestore {
 
     function isValidDocument(data) {
       return data.keys().hasAll(['title', 'type', 'status', 'uploader', 'uploadDate']) &&
-             data.title is string && data.title.size() > 0 && data.title.size() < 500 &&
+             data.title is string && data.title.size() > 0 &&
              data.type in ['pdf', 'doc', 'docx'] &&
              data.status in ['published', 'review', 'pending', 'signed'] &&
-             (!('area' in data) || (data.area is string && data.area.size() > 0));
+             (!('area' in data) || data.area is string) &&
+             (!('expirationDate' in data) || data.expirationDate is string);
     }
 
     // Rules
     match /mural_posts/{postId} {
-      allow read: if true; // Publicly readable as requested
-      allow create, update: if isAuthenticated() && isValidMuralPost(request.resource.data);
-      allow delete: if isAuthenticated(); // Allow deletion for authenticated users (including anonymous)
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
     }
 
     match /documents/{docId} {
-      allow read: if true; // Publicly readable as requested
-      allow create, update: if isAuthenticated() && isValidDocument(request.resource.data);
-      allow delete: if isAuthenticated(); // Allow deletion for authenticated users (including anonymous)
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
     }
     
     // Default deny
