@@ -60,6 +60,18 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
   console.error('Firestore Error: ', JSON.stringify(errInfo));
 };
 
+const ADMIN_EMAILS = [
+  'qualidade@eclin.com.br',
+  'marketing@grupoeclin.com.br',
+  'rafael.dias@eclin.eng.br',
+  'juliana.engbio@gmail.com'
+];
+
+const checkIsAdmin = (email: string) => {
+  if (!email) return false;
+  return ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === email.trim().toLowerCase());
+};
+
 interface DocumentCardProps {
   doc: QualityDocument;
   user: User | null;
@@ -149,6 +161,18 @@ const App: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [muralHeaderError, setMuralHeaderError] = useState(false);
+
+  // Ensure user role is correct if admin list changes or on initial load
+  useEffect(() => {
+    if (user && user.email) {
+      const isAdmin = checkIsAdmin(user.email);
+      if (isAdmin && user.role !== 'admin') {
+        setUser(prev => prev ? { ...prev, role: 'admin' } : null);
+      } else if (!isAdmin && user.role === 'admin') {
+        setUser(prev => prev ? { ...prev, role: 'user' } : null);
+      }
+    }
+  }, [user]);
   
   useEffect(() => {
     setSelectedFile(null);
@@ -235,15 +259,9 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
-      const admins = [
-        'qualidade@eclin.com.br', 
-        'marketing@grupoeclin.com.br', 
-        'rafael.dias@eclin.eng.br', 
-        'juliana.engbio@gmail.com'
-      ];
-      const isAdmin = admins.map(a => a.toLowerCase()).includes(email.toLowerCase());
-      
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail && password) {
+      const isAdmin = checkIsAdmin(cleanEmail);
       const validPassword = getCurrentPassword();
 
       if (password === validPassword) {
@@ -251,9 +269,9 @@ const App: React.FC = () => {
           setShowChangePassword(true);
           setNotification("Primeiro acesso detectado. Por favor, altere sua senha por segurança.");
         } else {
-          setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });
+          setUser({ email: cleanEmail, name: cleanEmail.split('@')[0], role: isAdmin ? 'admin' : 'user' });
           setActiveTab('mural');
-          setNotification(`Bem-vindo, ${email.split('@')[0]}!`);
+          setNotification(`Bem-vindo, ${cleanEmail.split('@')[0]}!`);
         }
       } else {
         setNotification("Senha incorreta. Tente novamente.");
@@ -263,6 +281,7 @@ const App: React.FC = () => {
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
     if (newPassword.length < 6) {
       setNotification("A senha deve ter pelo menos 6 caracteres.");
       return;
@@ -273,15 +292,9 @@ const App: React.FC = () => {
     }
 
     localStorage.setItem('eclin_portal_password', newPassword);
-    const admins = [
-      'qualidade@eclin.com.br', 
-      'marketing@grupoeclin.com.br', 
-      'rafael.dias@eclin.eng.br', 
-      'juliana.engbio@gmail.com'
-    ];
-    const isAdmin = admins.map(a => a.toLowerCase()).includes(email.toLowerCase());
+    const isAdmin = checkIsAdmin(cleanEmail);
     
-    setUser({ email, name: email.split('@')[0], role: isAdmin ? 'admin' : 'user' });
+    setUser({ email: cleanEmail, name: cleanEmail.split('@')[0], role: isAdmin ? 'admin' : 'user' });
     setShowChangePassword(false);
     setActiveTab('mural');
     setNotification("Senha alterada com sucesso! Bem-vindo ao portal.");
