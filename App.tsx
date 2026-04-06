@@ -51,26 +51,14 @@ interface FirestoreErrorInfo {
 }
 
 const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
-  const errInfo: FirestoreErrorInfo = {
+  const errInfo = {
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
     operationType,
-    path
-  }
+    path,
+    auth: auth.currentUser ? 'Authenticated' : 'Not Authenticated'
+  };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-}
+};
 
 interface DocumentCardProps {
   doc: QualityDocument;
@@ -144,6 +132,12 @@ const App: React.FC = () => {
   
   const [muralPosts, setMuralPosts] = useState<MuralPost[]>([]);
   const [documents, setDocuments] = useState<QualityDocument[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  useEffect(() => {
+    setSelectedFile(null);
+  }, [activeTab]);
   
   const hasSeededMural = useRef(false);
   const hasSeededDocs = useRef(false);
@@ -151,7 +145,12 @@ const App: React.FC = () => {
   // Firebase Real-time Sync
   useEffect(() => {
     // Sign in anonymously to allow security rules to work
-    signInAnonymously(auth).catch(err => console.error("Auth error", err));
+    signInAnonymously(auth)
+      .then(() => console.log("Auth success"))
+      .catch(err => {
+        console.error("Auth error", err);
+        setNotification("Atenção: Erro de conexão com o banco de dados. Verifique sua internet.");
+      });
 
     const muralQuery = query(collection(db, 'mural_posts'), orderBy('date', 'desc'));
     const unsubMural = onSnapshot(muralQuery, (snapshot) => {
@@ -305,15 +304,16 @@ const App: React.FC = () => {
     setActiveTab('mural');
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'docx') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = async (type: 'pdf' | 'docx') => {
+    if (!selectedFile) return;
+    const file = selectedFile;
 
     if (type === 'pdf' && !expirationDate) {
       setNotification("Por favor, selecione a data de validade para o documento oficial.");
       return;
     }
 
+    setIsUploading(true);
     const newDoc = {
       title: file.name,
       type: type,
@@ -326,11 +326,14 @@ const App: React.FC = () => {
 
     try {
       await addDoc(collection(db, 'documents'), newDoc);
-      setNotification(`Sucesso! Notificação enviada para ${CONFIG.notificationEmail} sobre o arquivo: ${file.name}`);
+      setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
       setExpirationDate('');
+      setSelectedFile(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'documents');
-      setNotification("Erro ao enviar documento. Verifique sua conexão ou permissões.");
+      setNotification("Erro ao salvar no banco de dados. Verifique suas permissões.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -729,11 +732,30 @@ const App: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="text-center">
-                      <input type="file" accept=".pdf" onChange={(e) => handleFileUpload(e, 'pdf')} className="hidden" id="pdf-upload" />
-                      <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
-                        Selecionar PDF e Enviar
-                      </label>
+                    <div className="text-center space-y-4">
+                      <input type="file" accept=".pdf" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="hidden" id="pdf-upload" />
+                      {!selectedFile ? (
+                        <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
+                          Selecionar PDF
+                        </label>
+                      ) : (
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="flex items-center gap-3 bg-slate-50 px-6 py-3 rounded-xl border border-slate-100">
+                            <i className="fas fa-file-pdf text-brand-primary"></i>
+                            <span className="text-xs font-bold text-slate-700 truncate max-w-[250px]">{selectedFile.name}</span>
+                            <button onClick={() => setSelectedFile(null)} className="text-slate-400 hover:text-red-500 ml-2">
+                              <i className="fas fa-times"></i>
+                            </button>
+                          </div>
+                          <button 
+                            onClick={() => handleFileUpload('pdf')} 
+                            disabled={isUploading}
+                            className="px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all disabled:opacity-50"
+                          >
+                            {isUploading ? 'Enviando...' : 'Confirmar e Publicar'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -769,10 +791,29 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="border-4 border-dashed border-slate-100 rounded-[2rem] p-16 text-center space-y-6 hover:border-brand-primary/50 transition-all bg-slate-50/50">
-                  <input type="file" accept=".doc,.docx" onChange={(e) => handleFileUpload(e, 'docx')} className="hidden" id="docx-upload" />
-                  <label htmlFor="docx-upload" className="inline-block px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10">
-                    Procurar Word (.doc / .docx)
-                  </label>
+                  <input type="file" accept=".doc,.docx" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="hidden" id="docx-upload" />
+                  {!selectedFile ? (
+                    <label htmlFor="docx-upload" className="inline-block px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10">
+                      Procurar Word (.doc / .docx)
+                    </label>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-xl border border-slate-100 shadow-sm">
+                        <i className="fas fa-file-word text-brand-primary"></i>
+                        <span className="text-xs font-bold text-slate-700 truncate max-w-[250px]">{selectedFile.name}</span>
+                        <button onClick={() => setSelectedFile(null)} className="text-slate-400 hover:text-red-500 ml-2">
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => handleFileUpload('docx')} 
+                        disabled={isUploading}
+                        className="px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10 disabled:opacity-50"
+                      >
+                        {isUploading ? 'Enviando...' : 'Enviar para Revisão'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
