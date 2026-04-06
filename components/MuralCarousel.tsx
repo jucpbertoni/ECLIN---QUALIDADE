@@ -6,10 +6,11 @@ interface MuralCarouselProps {
   posts: MuralPost[];
   onSelectPost: (post: MuralPost) => void;
   onEditPost?: (post: MuralPost) => void;
+  onDeletePost?: (id: string) => void;
   isAdmin?: boolean;
 }
 
-const MuralCarousel = memo<MuralCarouselProps>(({ posts, onSelectPost, onEditPost, isAdmin }) => {
+const MuralCarousel = memo<MuralCarouselProps>(({ posts, onSelectPost, onEditPost, onDeletePost, isAdmin }) => {
   const [page, setPage] = useState(0);
   const postsPerPage = 6; // 2 rows of 3 posts
   
@@ -43,13 +44,27 @@ const MuralCarousel = memo<MuralCarouselProps>(({ posts, onSelectPost, onEditPos
                 >
                   Ver Post
                 </button>
-                {isAdmin && onEditPost && (
-                  <button 
-                    onClick={() => onEditPost(post)}
-                    className="px-3 bg-slate-50 text-slate-400 rounded-xl border border-slate-200 hover:text-brand-primary transition-colors"
-                  >
-                    <i className="fas fa-edit"></i>
-                  </button>
+                {isAdmin && (
+                  <div className="flex gap-2">
+                    {onEditPost && (
+                      <button 
+                        onClick={() => onEditPost(post)}
+                        className="px-3 bg-slate-50 text-slate-400 rounded-xl border border-slate-200 hover:text-brand-primary transition-colors"
+                        title="Editar Post"
+                      >
+                        <i className="fas fa-edit"></i>
+                      </button>
+                    )}
+                    {onDeletePost && (
+                      <button 
+                        onClick={() => onDeletePost(post.id)}
+                        className="px-3 bg-slate-50 text-red-400 rounded-xl border border-slate-200 hover:text-red-600 transition-colors"
+                        title="Excluir Post"
+                      >
+                        <i className="fas fa-trash-alt"></i>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

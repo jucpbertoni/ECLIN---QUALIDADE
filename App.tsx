@@ -176,32 +176,11 @@ const App: React.FC = () => {
     const unsubMural = onSnapshot(muralQuery, (snapshot) => {
       const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
       setMuralPosts(posts);
-
-      if (posts.length === 0 && !hasSeededMural.current) {
-        hasSeededMural.current = true;
-        CONFIG.muralPosts.forEach(async (post) => {
-          const { id, ...postData } = post;
-          await setDoc(doc(db, 'mural_posts', id), postData).catch(console.error);
-        });
-      }
     });
 
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QualityDocument));
       setDocuments(docs);
-
-      if (docs.length === 0 && !hasSeededDocs.current) {
-        hasSeededDocs.current = true;
-        const initialDocs = [
-          { id: '1', title: `Manual de Qualidade ${CONFIG.brandName} ONA v.1`, type: 'pdf', status: 'published', uploader: 'Diretoria Executiva', uploadDate: '2024-03-01', area: 'Gestão de Qualidade e Biossegurança', expirationDate: '2026-03-01' },
-          { id: '2', title: 'Protocolo de Identificação do Paciente', type: 'pdf', status: 'published', uploader: 'Comitê Gestor', uploadDate: '2024-03-15', area: 'Liderança Organizacional', expirationDate: '2026-03-15' },
-          { id: '3', title: `Política de Descarte de Resíduos ${CONFIG.brandName}`, type: 'pdf', status: 'published', uploader: 'Engenharia Clínica', uploadDate: '2024-03-20', area: 'Engenharia Clínica', expirationDate: '2026-03-20' },
-        ];
-        initialDocs.forEach(async (docItem) => {
-          const { id, ...docData } = docItem;
-          await setDoc(doc(db, 'documents', id), docData).catch(console.error);
-        });
-      }
     });
 
     return () => {
@@ -306,6 +285,11 @@ const App: React.FC = () => {
   const handleFileUpload = async (type: 'pdf' | 'docx') => {
     if (!selectedFile) return;
     
+    if (user?.role !== 'admin') {
+      setNotification("Apenas administradores podem enviar documentos.");
+      return;
+    }
+    
     const file = selectedFile;
 
     // Firestore has a 2MB limit per document (increased from 1MB).
@@ -361,6 +345,11 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!newPostTitle || !newPostContent) return;
 
+    if (user?.role !== 'admin') {
+      setNotification("Apenas administradores podem gerenciar o mural.");
+      return;
+    }
+
     const postData = {
       title: newPostTitle,
       content: newPostContent,
@@ -402,6 +391,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleDeletePost = useCallback(async (id: string) => {
+    if (user?.role !== 'admin') {
+      setNotification("Apenas administradores podem excluir posts.");
+      return;
+    }
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
       try {
         await deleteDoc(doc(db, 'mural_posts', id));
@@ -414,6 +407,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleDeleteDocument = useCallback(async (id: string) => {
+    if (user?.role !== 'admin') {
+      setNotification("Apenas administradores podem excluir documentos.");
+      return;
+    }
     if (window.confirm("Tem certeza que deseja excluir este documento?")) {
       try {
         await deleteDoc(doc(db, 'documents', id));
@@ -426,6 +423,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleEditDocument = useCallback(async (id: string) => {
+    if (user?.role !== 'admin') {
+      setNotification("Apenas administradores podem editar documentos.");
+      return;
+    }
     const docItem = documents.find(d => d.id === id);
     if (!docItem) return;
     
@@ -517,6 +518,11 @@ const App: React.FC = () => {
                     >
                       {CONFIG.tabs.public}
                     </button>
+                  </>
+                )}
+                {user?.role === 'admin' && (
+                  <>
+                    <div className="w-[1px] h-4 bg-slate-200 mx-2 hidden md:block"></div>
                     <button 
                       onClick={() => setActiveTab('upload')}
                       className={`px-3 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'upload' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
@@ -600,6 +606,7 @@ const App: React.FC = () => {
                   posts={muralPosts} 
                   onSelectPost={handleSelectPost} 
                   onEditPost={startEditingPost}
+                  onDeletePost={handleDeletePost}
                   isAdmin={user?.role === 'admin'}
                 />
 
@@ -823,7 +830,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'upload' && user && (
+            {activeTab === 'upload' && user?.role === 'admin' && (
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
