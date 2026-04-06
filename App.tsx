@@ -149,9 +149,15 @@ const App: React.FC = () => {
       try {
         await signInAnonymously(auth);
         setIsFirebaseReady(true);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Auth error", err);
-        setNotification("Erro de conexão. Verifique sua internet.");
+        if (err.code === 'auth/admin-restricted-operation') {
+          setNotification("Atenção: O 'Anonymous Auth' precisa ser ativado no Console do Firebase (Authentication > Sign-in method).");
+        } else {
+          setNotification("Erro de conexão. Verifique sua internet.");
+        }
+        // Mesmo com erro de auth, permitimos que o sistema tente operar (regras de segurança foram relaxadas temporariamente)
+        setIsFirebaseReady(true); 
       }
     };
 
@@ -291,16 +297,6 @@ const App: React.FC = () => {
   const handleFileUpload = async (type: 'pdf' | 'docx') => {
     if (!selectedFile) return;
     
-    if (!isFirebaseReady) {
-      try {
-        await signInAnonymously(auth);
-        setIsFirebaseReady(true);
-      } catch (err) {
-        setNotification("O sistema ainda está conectando ao servidor. Por favor, aguarde alguns segundos e tente novamente.");
-        return;
-      }
-    }
-
     const file = selectedFile;
 
     if (type === 'pdf' && !expirationDate) {
@@ -335,16 +331,6 @@ const App: React.FC = () => {
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostTitle || !newPostContent) return;
-
-    if (!isFirebaseReady) {
-      try {
-        await signInAnonymously(auth);
-        setIsFirebaseReady(true);
-      } catch (err) {
-        setNotification("O sistema ainda está conectando ao servidor. Por favor, aguarde alguns segundos e tente novamente.");
-        return;
-      }
-    }
 
     const postData = {
       title: newPostTitle,
