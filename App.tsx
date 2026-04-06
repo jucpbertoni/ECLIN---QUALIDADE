@@ -66,16 +66,18 @@ const ADMIN_EMAILS = [
   'rafael.dias@eclin.eng.br',
   'juliana.engbio@gmail.com',
   'qualidade',
-  'juliana.engbio'
+  'juliana.engbio',
+  'rafael.dias',
+  'marketing'
 ];
 
-const checkIsAdmin = (email: string) => {
+const checkIsAdmin = (email: string | undefined | null) => {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
   const prefix = clean.split('@')[0];
-  return ADMIN_EMAILS.some(adminEmail => {
-    const adminClean = adminEmail.toLowerCase();
-    return adminClean === clean || adminClean === prefix;
+  return ADMIN_EMAILS.some(admin => {
+    const a = admin.toLowerCase();
+    return clean === a || prefix === a;
   });
 };
 
@@ -408,13 +410,17 @@ const App: React.FC = () => {
   };
 
   const startEditingPost = useCallback((post: MuralPost) => {
+    if (user?.role !== 'admin') {
+      setNotification("Apenas administradores podem editar postagens.");
+      return;
+    }
     setEditingPost(post);
     setNewPostTitle(post.title);
     setNewPostContent(post.content);
     setNewPostImage(post.image || '');
     setIsAddingPost(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [user]);
 
   const handleSelectPost = useCallback((post: MuralPost) => {
     setSelectedPost(post);
@@ -434,7 +440,7 @@ const App: React.FC = () => {
         setNotification("Erro ao excluir post. Verifique suas permissões.");
       }
     }
-  }, []);
+  }, [user]);
 
   const handleDeleteDocument = useCallback(async (id: string) => {
     if (user?.role !== 'admin') {
@@ -450,7 +456,7 @@ const App: React.FC = () => {
         setNotification("Erro ao excluir documento. Verifique suas permissões.");
       }
     }
-  }, []);
+  }, [user]);
 
   const handleEditDocument = useCallback(async (id: string) => {
     if (user?.role !== 'admin') {
@@ -470,7 +476,7 @@ const App: React.FC = () => {
         setNotification("Erro ao atualizar documento. Verifique suas permissões.");
       }
     }
-  }, [documents]);
+  }, [documents, user]);
 
   const getExpirationAlert = useCallback((dateStr?: string) => {
     if (!dateStr) return null;
@@ -570,16 +576,16 @@ const App: React.FC = () => {
                   <div className="w-8 h-8 rounded-lg brand-gradient flex items-center justify-center text-white text-xs font-bold">
                     {user.name[0].toUpperCase()}
                   </div>
-                  <div className="text-left hidden sm:block">
+                  <div className="text-left">
                     <div className="flex items-center gap-2">
-                      <p className="text-[10px] font-black text-slate-800 uppercase leading-none">{user.name}</p>
+                      <p className="text-[10px] font-black text-slate-800 uppercase leading-none truncate max-w-[80px] sm:max-w-none">{user.name}</p>
                       {user.role === 'admin' && (
-                        <span className="bg-brand-primary/10 text-brand-primary text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md border border-brand-primary/20">
+                        <span className="bg-brand-primary/10 text-brand-primary text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md border border-brand-primary/20 flex-shrink-0">
                           Admin
                         </span>
                       )}
                     </div>
-                    <p className="text-[8px] text-brand-secondary font-bold uppercase tracking-widest">Equipe {CONFIG.brandName}</p>
+                    <p className="text-[8px] text-brand-secondary font-bold uppercase tracking-widest hidden sm:block">Equipe {CONFIG.brandName}</p>
                   </div>
                   <button 
                     onClick={handleLogout}
