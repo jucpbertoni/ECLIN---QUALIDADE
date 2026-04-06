@@ -64,12 +64,19 @@ const ADMIN_EMAILS = [
   'qualidade@eclin.com.br',
   'marketing@grupoeclin.com.br',
   'rafael.dias@eclin.eng.br',
-  'juliana.engbio@gmail.com'
+  'juliana.engbio@gmail.com',
+  'qualidade',
+  'juliana.engbio'
 ];
 
 const checkIsAdmin = (email: string) => {
   if (!email) return false;
-  return ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === email.trim().toLowerCase());
+  const clean = email.trim().toLowerCase();
+  const prefix = clean.split('@')[0];
+  return ADMIN_EMAILS.some(adminEmail => {
+    const adminClean = adminEmail.toLowerCase();
+    return adminClean === clean || adminClean === prefix;
+  });
 };
 
 interface DocumentCardProps {
@@ -564,7 +571,14 @@ const App: React.FC = () => {
                     {user.name[0].toUpperCase()}
                   </div>
                   <div className="text-left hidden sm:block">
-                    <p className="text-[10px] font-black text-slate-800 uppercase leading-none">{user.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] font-black text-slate-800 uppercase leading-none">{user.name}</p>
+                      {user.role === 'admin' && (
+                        <span className="bg-brand-primary/10 text-brand-primary text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md border border-brand-primary/20">
+                          Admin
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[8px] text-brand-secondary font-bold uppercase tracking-widest">Equipe {CONFIG.brandName}</p>
                   </div>
                   <button 
