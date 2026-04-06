@@ -290,6 +290,17 @@ const App: React.FC = () => {
 
   const handleFileUpload = async (type: 'pdf' | 'docx') => {
     if (!selectedFile) return;
+    
+    if (!isFirebaseReady) {
+      try {
+        await signInAnonymously(auth);
+        setIsFirebaseReady(true);
+      } catch (err) {
+        setNotification("O sistema ainda está conectando ao servidor. Por favor, aguarde alguns segundos e tente novamente.");
+        return;
+      }
+    }
+
     const file = selectedFile;
 
     if (type === 'pdf' && !expirationDate) {
@@ -324,6 +335,16 @@ const App: React.FC = () => {
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostTitle || !newPostContent) return;
+
+    if (!isFirebaseReady) {
+      try {
+        await signInAnonymously(auth);
+        setIsFirebaseReady(true);
+      } catch (err) {
+        setNotification("O sistema ainda está conectando ao servidor. Por favor, aguarde alguns segundos e tente novamente.");
+        return;
+      }
+    }
 
     const postData = {
       title: newPostTitle,
@@ -611,7 +632,7 @@ const App: React.FC = () => {
                       />
                       <button 
                         type="submit" 
-                        disabled={!isFirebaseReady}
+                        disabled={isUploading}
                         className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs disabled:opacity-50"
                       >
                         {editingPost ? 'Salvar Alterações' : 'Publicar no Mural'}
@@ -736,7 +757,7 @@ const App: React.FC = () => {
                           </div>
                           <button 
                             onClick={() => handleFileUpload('pdf')} 
-                            disabled={isUploading || !isFirebaseReady}
+                            disabled={isUploading}
                             className="px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all disabled:opacity-50"
                           >
                             {isUploading ? 'Enviando...' : 'Confirmar e Publicar'}
@@ -794,7 +815,7 @@ const App: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => handleFileUpload('docx')} 
-                        disabled={isUploading || !isFirebaseReady}
+                        disabled={isUploading}
                         className="px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10 disabled:opacity-50"
                       >
                         {isUploading ? 'Enviando...' : 'Enviar para Revisão'}
