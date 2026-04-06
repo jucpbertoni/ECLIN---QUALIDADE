@@ -17,3 +17,11 @@ body {
 .brand-gradient {
   background: linear-gradient(135deg, #1fb1c1 0%, #5fb1cc 100%);
 }
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

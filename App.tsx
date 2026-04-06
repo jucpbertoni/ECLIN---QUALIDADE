@@ -308,9 +308,9 @@ const App: React.FC = () => {
     
     const file = selectedFile;
 
-    // Firestore has a 1MB limit per document.
-    if (file.size > 1024 * 1024) {
-      setNotification("O arquivo é muito grande (máximo 1MB). Por favor, utilize arquivos menores ou entre em contato com o suporte.");
+    // Firestore has a 2MB limit per document (increased from 1MB).
+    if (file.size > 2 * 1024 * 1024) {
+      setNotification("O arquivo é muito grande (máximo 2MB). Por favor, utilize arquivos menores ou entre em contato com o suporte.");
       return;
     }
 
@@ -500,12 +500,12 @@ const App: React.FC = () => {
       <nav className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
-            <div className="flex items-center gap-10">
+            <div className="flex items-center gap-4 md:gap-10">
               <Logo />
-              <div className="hidden md:flex items-center gap-2">
+              <div className="flex items-center gap-1 md:gap-2 overflow-x-auto no-scrollbar py-2">
                 <button 
                   onClick={() => setActiveTab('mural')}
-                  className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'mural' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
+                  className={`px-3 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'mural' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                 >
                   {CONFIG.tabs.mural}
                 </button>
@@ -513,13 +513,13 @@ const App: React.FC = () => {
                   <>
                     <button 
                       onClick={() => setActiveTab('public')}
-                      className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'public' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
+                      className={`px-3 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'public' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                     >
                       {CONFIG.tabs.public}
                     </button>
                     <button 
                       onClick={() => setActiveTab('upload')}
-                      className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'upload' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
+                      className={`px-3 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'upload' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
                     >
                       {CONFIG.tabs.upload}
                     </button>
@@ -556,24 +556,24 @@ const App: React.FC = () => {
           <div className="lg:col-span-8 space-y-10">
             {activeTab === 'mural' && (
               <div className="space-y-12">
-                <div className="flex items-end justify-between border-b-4 border-brand-dark pb-6">
-                  <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary overflow-hidden border-2 border-brand-primary/20">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b-4 border-brand-dark pb-6 gap-6">
+                  <div className="flex items-center gap-4 sm:gap-6">
+                    <div className="w-16 h-16 sm:w-24 sm:h-24 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary overflow-hidden border-2 border-brand-primary/20 shrink-0">
                       {!muralHeaderError ? (
                         <img 
                           src="https://lh3.googleusercontent.com/d/1jsycEnW0eYwgRkvhw6mfckuDVeBrpacT" 
                           alt="Selo Qualidade" 
-                          className="w-16 h-16 object-contain"
+                          className="w-10 h-10 sm:w-16 sm:h-16 object-contain"
                           onError={() => setMuralHeaderError(true)}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <i className="fas fa-award text-4xl"></i>
+                        <i className="fas fa-award text-2xl sm:text-4xl"></i>
                       )}
                     </div>
-                    <div>
-                      <span className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.4em] mb-2 block">Mural da Qualidade</span>
-                      <h2 className="text-6xl font-black text-blue-600 tracking-tighter uppercase leading-none">Qualidade <br/>em Ação</h2>
+                    <div className="min-w-0">
+                      <span className="text-[8px] sm:text-[10px] font-black text-brand-secondary uppercase tracking-[0.2em] sm:tracking-[0.4em] mb-1 sm:mb-2 block truncate">Mural da Qualidade</span>
+                      <h2 className="text-4xl sm:text-6xl font-black text-blue-600 tracking-tighter uppercase leading-none break-words">Qualidade <br className="hidden sm:block"/>em Ação</h2>
                     </div>
                   </div>
                   {user?.role === 'admin' && (
