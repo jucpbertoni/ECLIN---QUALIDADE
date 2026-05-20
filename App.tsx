@@ -324,9 +324,10 @@ const App: React.FC = () => {
     
     const file = selectedFile;
 
-    // Firestore has a 2MB limit per document (increased from 1MB).
-    if (file.size > 2 * 1024 * 1024) {
-      setNotification("O arquivo é muito grande (máximo 2MB). Por favor, utilize arquivos menores ou entre em contato com o suporte.");
+    // Firestore has a 1MB limit per document.
+    // Base64 encoding increases size by ~33%, so we limit original file to ~750KB.
+    if (file.size > 0.75 * 1024 * 1024) {
+      setNotification("O arquivo é muito grande (máximo 750KB para garantir o salvamento). Por favor, utilize arquivos menores.");
       return;
     }
 
@@ -357,9 +358,15 @@ const App: React.FC = () => {
         setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
         setExpirationDate('');
         setSelectedFile(null);
-      } catch (error) {
+      } catch (error: any) {
         handleFirestoreError(error, OperationType.CREATE, 'documents');
-        setNotification("Erro ao salvar no banco de dados. Verifique suas permissões.");
+        if (error.message?.includes('permission-denied')) {
+          setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
+        } else if (error.message?.includes('too large')) {
+          setNotification("O arquivo final excedeu o limite do banco de dados (1MB). Tente um arquivo menor.");
+        } else {
+          setNotification("Erro ao salvar no banco de dados. Verifique sua conexão.");
+        }
       } finally {
         setIsUploading(false);
       }

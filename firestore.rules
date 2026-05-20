@@ -21,7 +21,9 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.email == "juliana.engbio@gmail.com" ||
-        request.auth.token.email == "rafael.dias@eclin.eng.br"
+        request.auth.token.email == "rafael.dias@eclin.eng.br" ||
+        request.auth.token.email == "qualidade@eclin.com.br" ||
+        request.auth.token.email == "marketing@grupoeclin.com.br"
       );
     }
 
