@@ -56,6 +56,10 @@ service cloud.firestore {
       // Recomendação: Ativar "Anonymous Auth" no Console do Firebase e restaurar "if isAuthenticated()"
       allow create, update, delete: if true;
     }
+
+    match /collaborators/{email} {
+      allow read, write: if true;
+    }
     
     // Default deny
     match /{document=**} {

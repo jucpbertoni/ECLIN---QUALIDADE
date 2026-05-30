@@ -29,6 +29,21 @@
         "expirationDate": { "type": "string", "description": "Expiration date of the document." }
       },
       "required": ["title", "type", "status", "uploader", "uploadDate", "area"]
+    },
+    "Collaborator": {
+      "title": "Collaborator",
+      "description": "An employee or collaborator of Eclin.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "Corporate email address of the collaborator." },
+        "firstName": { "type": "string", "description": "First name of the collaborator." },
+        "lastName": { "type": "string", "description": "Last name of the collaborator." },
+        "areaBase": { "type": "string", "description": "Area or base where they work." },
+        "password": { "type": "string", "description": "Access password (6 characters)." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "Access role." },
+        "createdAt": { "type": "string", "description": "Creation timestamp." }
+      },
+      "required": ["email", "firstName", "lastName", "areaBase", "password", "role"]
     }
   },
   "firestore": {
@@ -39,6 +54,10 @@
     "/documents/{docId}": {
       "schema": "QualityDocument",
       "description": "Collection of quality documents."
+    },
+    "/collaborators/{email}": {
+      "schema": "Collaborator",
+      "description": "Collection of registered collaborators."
     }
   }
 }

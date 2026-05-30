@@ -251,13 +251,14 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-
-  // Get current password from localStorage or use default
-  const getCurrentPassword = () => localStorage.getItem('eclin_portal_password') || 'Eclin2026';
-  const isFirstAccess = () => !localStorage.getItem('eclin_portal_password');
+  const [loginStep, setLoginStep] = useState<'email' | 'password' | 'register'>('email');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [regAreaBase, setRegAreaBase] = useState(CONFIG.areas[0]);
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [tempUserDoc, setTempUserDoc] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   useEffect(() => {
     if (notification) {
@@ -266,59 +267,147 @@ const App: React.FC = () => {
     }
   }, [notification]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail && password) {
-      const isAdmin = checkIsAdmin(cleanEmail);
-      const validPassword = getCurrentPassword();
-
-      if (password === validPassword) {
-        if (isFirstAccess()) {
-          setShowChangePassword(true);
-          setNotification("Primeiro acesso detectado. Por favor, altere sua senha por segurança.");
+    
+    if (loginStep === 'email') {
+      if (!cleanEmail) {
+        setNotification("Por favor, digite seu e-mail corporativo.");
+        return;
+      }
+      setIsAuthLoading(true);
+      try {
+        const docRef = doc(db, 'collaborators', cleanEmail);
+        const docSnap = await getDocFromServer(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setTempUserDoc(data);
+          setLoginStep('password');
+          setNotification("E-mail identificado! Por favor, informe sua senha.");
         } else {
-          setUser({ email: cleanEmail, name: cleanEmail.split('@')[0], role: isAdmin ? 'admin' : 'user' });
-          setActiveTab('mural');
-          setNotification(`Bem-vindo, ${cleanEmail.split('@')[0]}!`);
+          setLoginStep('register');
+          setNotification("Primeiro acesso identificado! Preencha as informações para cadastrar seu perfil.");
         }
+      } catch (error) {
+        console.error("Erro ao verificar e-mail:", error);
+        setNotification("Erro ao conectar com o banco de dados. Tente novamente.");
+      } finally {
+        setIsAuthLoading(false);
+      }
+    } else if (loginStep === 'password') {
+      if (!password) {
+        setNotification("Por favor, digite sua senha de 6 dígitos.");
+        return;
+      }
+      if (tempUserDoc && password === tempUserDoc.password) {
+        const isAdmin = checkIsAdmin(cleanEmail);
+        setUser({
+          email: cleanEmail,
+          name: `${tempUserDoc.firstName} ${tempUserDoc.lastName}`,
+          role: isAdmin ? 'admin' : 'user',
+          areaBase: tempUserDoc.areaBase
+        });
+        setActiveTab('mural');
+        setNotification(`Bem-vindo de volta, ${tempUserDoc.firstName}!`);
+        // Clean states
+        setEmail('');
+        setPassword('');
+        setTempUserDoc(null);
+        setLoginStep('email');
       } else {
         setNotification("Senha incorreta. Tente novamente.");
       }
     }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-    if (newPassword.length < 6) {
-      setNotification("A senha deve ter pelo menos 6 caracteres.");
+    
+    if (!firstName.trim() || !lastName.trim()) {
+      setNotification("Por favor, informe seu nome e sobrenome.");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setNotification("As senhas não coincidem.");
+    if (regPassword.length !== 6 || !/^\d{6}$/.test(regPassword)) {
+      setNotification("A senha deve ter exatamente 6 dígitos numéricos.");
+      return;
+    }
+    if (regPassword !== regConfirmPassword) {
+      setNotification("As senhas informadas não coincidem.");
       return;
     }
 
-    localStorage.setItem('eclin_portal_password', newPassword);
-    const isAdmin = checkIsAdmin(cleanEmail);
-    
-    setUser({ email: cleanEmail, name: cleanEmail.split('@')[0], role: isAdmin ? 'admin' : 'user' });
-    setShowChangePassword(false);
-    setActiveTab('mural');
-    setNotification("Senha alterada com sucesso! Bem-vindo ao portal.");
+    setIsAuthLoading(true);
+    const newUser = {
+      email: cleanEmail,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      areaBase: regAreaBase,
+      password: regPassword,
+      role: checkIsAdmin(cleanEmail) ? 'admin' : 'user',
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(doc(db, 'collaborators', cleanEmail), newUser);
+      setUser({
+        email: cleanEmail,
+        name: `${newUser.firstName} ${newUser.lastName}`,
+        role: newUser.role,
+        areaBase: newUser.areaBase
+      });
+      setActiveTab('mural');
+      setNotification(`Cadastro realizado com sucesso! Bem-vindo, ${newUser.firstName}!`);
+      // Reset registration states
+      setEmail('');
+      setPassword('');
+      setFirstName('');
+      setLastName('');
+      setRegPassword('');
+      setRegConfirmPassword('');
+      setLoginStep('email');
+    } catch (error) {
+      console.error("Erro ao registrar colaborador:", error);
+      setNotification("Erro ao salvar cadastro. Verifique sua conexão.");
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   const handleLogout = () => {
     setUser(null);
+    setLoginStep('email');
+    setEmail('');
+    setPassword('');
+    setTempUserDoc(null);
     setActiveTab('mural');
+  };
+
+  const triggerSubmissionEmail = (fileName: string) => {
+    const subject = encodeURIComponent(`[Portal Qualidade] Revisão de Documento - ${fileName}`);
+    const body = encodeURIComponent(
+      `Prezada Equipe de Qualidade,\n\n` +
+      `Estou enviando o arquivo "${fileName}" para revisão e validação no sistema.\n\n` +
+      `Detalhes do Envio:\n` +
+      `- Colaborador: ${user?.name || 'Não identificado'}\n` +
+      `- E-mail: ${user?.email || 'Não identificado'}\n` +
+      `- Área/Base: ${user?.areaBase || 'Não identificada'}\n` +
+      `- Data de Envio: ${new Date().toLocaleDateString('pt-BR')}\n\n` +
+      `Por favor, encontre o documento em anexo (ou acesse a revisão pendente pelo portal).\n\n` +
+      `Atenciosamente,\n` +
+      `${user?.name || 'Colaborador Eclin'}`
+    );
+    const mailtoUrl = `mailto:${CONFIG.notificationEmail}?subject=${subject}&body=${body}`;
+    window.location.href = mailtoUrl;
   };
 
   const handleFileUpload = async (type: 'pdf' | 'docx') => {
     if (!selectedFile) return;
     
-    if (user?.role !== 'admin') {
-      setNotification("Apenas administradores podem enviar documentos.");
+    if (type === 'pdf' && user?.role !== 'admin') {
+      setNotification("Apenas administradores podem enviar documentos oficiais.");
       return;
     }
     
@@ -327,7 +416,13 @@ const App: React.FC = () => {
     // Firestore has a 1MB limit per document.
     // Base64 encoding increases size by ~33%, so we limit original file to ~750KB.
     if (file.size > 0.75 * 1024 * 1024) {
-      setNotification("O arquivo é muito grande (máximo 750KB para garantir o salvamento). Por favor, utilize arquivos menores.");
+      if (type === 'docx') {
+        setNotification("O arquivo excedeu 750KB (limite de dados do portal), mas você pode enviá-lo diretamente por e-mail! Abrindo e-mail...");
+        triggerSubmissionEmail(file.name);
+        setSelectedFile(null);
+      } else {
+        setNotification("O arquivo é muito grande (máximo 750KB para garantir o salvamento). Por favor, utilize arquivos menores.");
+      }
       return;
     }
 
@@ -346,26 +441,38 @@ const App: React.FC = () => {
         title: file.name,
         type: type,
         status: type === 'docx' ? 'pending' : 'published',
-        uploader: user?.name || `Equipe ${CONFIG.brandName}`,
+        uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
         uploadDate: new Date().toISOString().split('T')[0],
-        area: type === 'pdf' ? selectedArea : undefined,
+        area: type === 'pdf' ? selectedArea : (user?.areaBase || 'Qualidade'),
         expirationDate: type === 'pdf' ? expirationDate : undefined,
         fileData: base64Data // Store file content for download/preview
       };
 
       try {
         await addDoc(collection(db, 'documents'), newDoc);
-        setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
+        if (type === 'docx') {
+          setNotification(`Sucesso! Arquivo enviado para revisão. Abrindo e-mail corporativo para envio...`);
+          triggerSubmissionEmail(file.name);
+        } else {
+          setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
+        }
         setExpirationDate('');
         setSelectedFile(null);
       } catch (error: any) {
         handleFirestoreError(error, OperationType.CREATE, 'documents');
-        if (error.message?.includes('permission-denied')) {
-          setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
-        } else if (error.message?.includes('too large')) {
-          setNotification("O arquivo final excedeu o limite do banco de dados (1MB). Tente um arquivo menor.");
+        if (type === 'docx') {
+          // Fallback to directly emailing since database saving failed
+          setNotification("Não foi possível salvar no banco, mas abrindo seu e-mail para envio direto!");
+          triggerSubmissionEmail(file.name);
+          setSelectedFile(null);
         } else {
-          setNotification("Erro ao salvar no banco de dados. Verifique sua conexão.");
+          if (error.message?.includes('permission-denied')) {
+            setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
+          } else if (error.message?.includes('too large')) {
+            setNotification("O arquivo final excedeu o limite do banco de dados (1MB). Tente um arquivo menor.");
+          } else {
+            setNotification("Erro ao salvar no banco de dados. Verifique sua conexão.");
+          }
         }
       } finally {
         setIsUploading(false);
@@ -563,7 +670,7 @@ const App: React.FC = () => {
                     </button>
                   </>
                 )}
-                {user?.role === 'admin' && (
+                {user && (
                   <>
                     <div className="w-[1px] h-4 bg-slate-200 mx-2 hidden md:block"></div>
                     <button 
@@ -880,7 +987,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'upload' && user?.role === 'admin' && (
+            {activeTab === 'upload' && user && (
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
@@ -973,36 +1080,185 @@ const App: React.FC = () => {
             <Countdown />
 
             {!user && (
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <h3 className="text-lg font-black text-brand-dark mb-6 flex items-center gap-3 uppercase tracking-tighter">
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
+                <h3 className="text-lg font-black text-brand-dark flex items-center gap-3 uppercase tracking-tighter">
                   <div className="w-1.5 h-5 bg-brand-secondary rounded-full"></div>
                   Acesso Interno
                 </h3>
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <input 
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="E-mail Corporativo"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <input 
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Senha"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
-                      required
-                    />
-                  </div>
-                  <button type="submit" className="w-full brand-gradient text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20">
-                    Entrar
-                  </button>
-                </form>
+                
+                {loginStep === 'email' && (
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
+                      Identifique-se com o seu e-mail corporativo:
+                    </p>
+                    <div>
+                      <input 
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="E-mail Corporativo"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                        required
+                        disabled={isAuthLoading}
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      disabled={isAuthLoading}
+                      className="w-full brand-gradient text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50"
+                    >
+                      {isAuthLoading ? 'Verificando...' : 'Prosseguir'}
+                    </button>
+                  </form>
+                )}
+
+                {loginStep === 'password' && (
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <p className="text-xs font-black text-brand-dark truncate leading-tight">
+                      Olá, <span className="text-brand-primary font-black">{tempUserDoc?.firstName}</span>!
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      Digite sua senha de 6 dígitos numéricos:
+                    </p>
+                    <div>
+                      <input 
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Senha de 6 dígitos"
+                        maxLength={6}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                        required
+                        disabled={isAuthLoading}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setLoginStep('email');
+                          setPassword('');
+                          setTempUserDoc(null);
+                        }}
+                        className="w-1/3 bg-slate-100 text-slate-600 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all text-center"
+                      >
+                        Voltar
+                      </button>
+                      <button 
+                        type="submit" 
+                        disabled={isAuthLoading}
+                        className="w-2/3 brand-gradient text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20"
+                      >
+                        Entrar
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {loginStep === 'register' && (
+                  <form onSubmit={handleRegister} className="space-y-4">
+                    <div className="bg-brand-primary/5 p-4 rounded-xl border border-brand-primary/10">
+                      <p className="text-[10px] text-brand-primary font-black uppercase tracking-wider mb-1">
+                        PRIMEIRO ACESSO DETECTADO!
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-bold">
+                        Cadastre seu perfil corporativo para continuar.
+                      </p>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                      E-mail: <span className="text-slate-600 font-black normal-case">{email}</span>
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nome</label>
+                        <input 
+                          type="text"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="Ex: Juliana"
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sobrenome</label>
+                        <input 
+                          type="text"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          placeholder="Ex: Bertoni"
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Área / Base de Atuação</label>
+                      <select 
+                        value={regAreaBase}
+                        onChange={(e) => setRegAreaBase(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                        required
+                      >
+                        {CONFIG.areas.map(a => (
+                          <option key={a} value={a}>{a}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Senha (6 dígitos)</label>
+                        <input 
+                          type="password"
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                          placeholder="Senha de 6 dígitos"
+                          maxLength={6}
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Confirmar Senha</label>
+                        <input 
+                          type="password"
+                          value={regConfirmPassword}
+                          onChange={(e) => setRegConfirmPassword(e.target.value)}
+                          placeholder="Repita a senha"
+                          maxLength={6}
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setLoginStep('email');
+                          setFirstName('');
+                          setLastName('');
+                          setRegPassword('');
+                          setRegConfirmPassword('');
+                        }}
+                        className="w-1/3 bg-slate-100 text-slate-600 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all text-center whitespace-nowrap"
+                      >
+                        Voltar
+                      </button>
+                      <button 
+                        type="submit" 
+                        disabled={isAuthLoading}
+                        className="w-2/3 brand-gradient text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20"
+                      >
+                        {isAuthLoading ? 'Salvando...' : 'Cadastrar'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
 
@@ -1037,49 +1293,7 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      {/* Modal de Alteração de Senha (Primeiro Acesso) */}
-      {showChangePassword && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-brand-dark/90 backdrop-blur-md"></div>
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative z-10">
-            <div className="text-center space-y-4 mb-8">
-              <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center text-brand-primary mx-auto">
-                <i className="fas fa-shield-alt text-2xl"></i>
-              </div>
-              <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Segurança Obrigatória</h2>
-              <p className="text-xs font-medium text-slate-500">Este é seu primeiro acesso. Para sua segurança, você deve definir uma nova senha pessoal.</p>
-            </div>
 
-            <form onSubmit={handleChangePassword} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nova Senha</label>
-                <input 
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirmar Nova Senha</label>
-                <input 
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repita a senha"
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none text-xs font-bold"
-                  required
-                />
-              </div>
-              <button type="submit" className="w-full brand-gradient text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all shadow-xl shadow-brand-primary/20">
-                Salvar e Acessar Portal
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Modal de Detalhes do Post */}
       {selectedPost && (
