@@ -37,7 +37,7 @@ service cloud.firestore {
       return data.keys().hasAll(['title', 'type', 'status', 'uploader', 'uploadDate']) &&
              data.title is string && data.title.size() > 0 &&
              data.type in ['pdf', 'doc', 'docx'] &&
-             data.status in ['published', 'review', 'pending', 'signed'] &&
+             data.status in ['published', 'review', 'pending', 'signed', 'approved', 'rejected'] &&
              (!('area' in data) || data.area is string) &&
              (!('expirationDate' in data) || data.expirationDate is string);
     }

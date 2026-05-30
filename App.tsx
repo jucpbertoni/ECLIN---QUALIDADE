@@ -160,9 +160,10 @@ interface PendingReviewCardProps {
   onApprove: (id: string, comment: string) => void;
   onDecline: (id: string, comment: string) => void;
   onDownload: (docItem: QualityDocument) => void;
+  onDelete: (id: string) => void;
 }
 
-const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, onDecline, onDownload }) => {
+const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, onDecline, onDownload, onDelete }) => {
   const [comment, setComment] = useState('');
 
   return (
@@ -197,14 +198,23 @@ const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, on
             </div>
           </div>
         </div>
-        <button 
-          onClick={() => onDownload(docItem)}
-          className="bg-brand-primary/10 hover:bg-brand-primary hover:text-white text-brand-primary px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-2"
-          title="Baixar arquivo original"
-        >
-          <i className="fas fa-download text-xs"></i>
-          Download (.docx)
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button 
+            onClick={() => onDownload(docItem)}
+            className="bg-brand-primary/10 hover:bg-brand-primary hover:text-white text-brand-primary px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            title="Baixar arquivo original"
+          >
+            <i className="fas fa-download text-xs"></i>
+            Download (.docx)
+          </button>
+          <button 
+            onClick={() => onDelete(docItem.id)}
+            className="bg-red-50 hover:bg-rose-500 hover:text-white border border-red-100 p-2.5 rounded-xl transition-all text-red-500"
+            title="Excluir submissão definitivamente"
+          >
+            <i className="fas fa-trash-alt text-xs"></i>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-medium">
@@ -623,9 +633,7 @@ const App: React.FC = () => {
       try {
         await addDoc(collection(db, 'documents'), newDoc);
         if (type === 'docx') {
-          // Send lightweight notification notice (no attachments)
-          await sendEmailWithBackend('submission', file.name, user?.name || '', user?.email || '', user?.areaBase || '');
-          setNotification("Sucesso! O documento foi submetido para a fila de revisão e a equipe de Qualidade foi notificada.");
+          setNotification("Sucesso! O documento foi submetido com sucesso para a fila de revisão da Qualidade.");
         } else {
           setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
         }
@@ -642,8 +650,7 @@ const App: React.FC = () => {
           
           await addDoc(collection(db, 'documents'), metadataDoc);
           if (type === 'docx') {
-            await sendEmailWithBackend('submission', file.name, user?.name || '', user?.email || '', user?.areaBase || '');
-            setNotification("Metadados registrados na fila de revisão com sucesso! Notificação enviada.");
+            setNotification("Sucesso! Metadados registrados com sucesso na fila de revisão.");
           } else {
             setNotification(`Sucesso! Metadados de "${file.name}" registrados, mas o arquivo é muito grande para visualização interna.`);
           }
@@ -740,20 +747,34 @@ const App: React.FC = () => {
   }, [user]);
 
   const handleDeleteDocument = useCallback(async (id: string) => {
-    if (user?.role !== 'admin') {
-      setNotification("Apenas administradores podem excluir documentos.");
+    const docItem = documents.find(d => d.id === id);
+    if (!docItem) {
+      setNotification("Documento não encontrado no sistema.");
       return;
     }
-    if (window.confirm("Tem certeza que deseja excluir este documento?")) {
+
+    const isOwner = docItem.uploaderEmail === user?.email;
+    const isAdmin = user?.role === 'admin';
+
+    if (!isAdmin && !isOwner) {
+      setNotification("Apenas administradores ou o autor da submissão podem excluir este documento.");
+      return;
+    }
+
+    const confirmMsg = isAdmin 
+      ? `Tem certeza que deseja excluir permanentemente o documento "${docItem.title}"?`
+      : `Deseja realmente apagar o seu envio de teste "${docItem.title}"?`;
+
+    if (window.confirm(confirmMsg)) {
       try {
         await deleteDoc(doc(db, 'documents', id));
-        setNotification("Documento removido com sucesso.");
+        setNotification("Documento removido do portal com sucesso.");
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
-        setNotification("Erro ao excluir documento. Verifique suas permissões.");
+        setNotification("Erro ao excluir documento do banco de dados.");
       }
     }
-  }, [user]);
+  }, [documents, user]);
 
   const handleEditDocument = useCallback(async (id: string) => {
     if (user?.role !== 'admin') {
@@ -790,20 +811,7 @@ const App: React.FC = () => {
         note: finalComment
       });
 
-      setNotification("Documento aprovado com sucesso! Enviando notificação...");
-
-      // Send lightweight email notice (no attachments)
-      if (docItem.uploaderEmail) {
-        await sendEmailWithBackend(
-          'approval', 
-          docItem.title, 
-          docItem.uploaderName || '', 
-          docItem.uploaderEmail || '', 
-          docItem.uploaderArea || '',
-          finalComment
-        );
-      }
-      setNotification("Documento aprovado e colaborador notificado por e-mail!");
+      setNotification("Sucesso! Documento aprovado na etapa de revisão da Qualidade.");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
       setNotification("Erro ao atualizar aprovação do documento.");
@@ -825,20 +833,7 @@ const App: React.FC = () => {
         note: finalComment
       });
 
-      setNotification("Documento recusado com sucesso! Enviando notificação...");
-
-      // Send lightweight email notice (no attachments)
-      if (docItem.uploaderEmail) {
-        await sendEmailWithBackend(
-          'rejection', 
-          docItem.title, 
-          docItem.uploaderName || '', 
-          docItem.uploaderEmail || '', 
-          docItem.uploaderArea || '',
-          finalComment
-        );
-      }
-      setNotification("Retorno enviado e colaborador notificado do ajuste!");
+      setNotification("Sucesso! O feedback e parecer de recusa foram registrados com sucesso.");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
       setNotification("Erro ao salvar recusa do documento.");
@@ -1361,7 +1356,9 @@ const App: React.FC = () => {
                                   <span className="bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase px-2.5 py-1 rounded-full tracking-wider">
                                     Aprovado
                                   </span>
-                                  <p className="text-[8px] font-extrabold text-emerald-600 block mt-1 uppercase tracking-wider">Aguarde instruções de assinatura</p>
+                                  <p className="text-[8px] font-extrabold text-emerald-600 block mt-1 uppercase tracking-wider max-w-[150px] leading-tight text-right">
+                                    Fique atento que logo receberá o e-mail para assinatura do arquivo final!
+                                  </p>
                                 </div>
                               )}
                               {myDoc.status === 'rejected' && (
@@ -1382,6 +1379,14 @@ const App: React.FC = () => {
                                   <i className="fas fa-download text-xs"></i>
                                 </button>
                               )}
+
+                              <button 
+                                onClick={() => handleDeleteDocument(myDoc.id)}
+                                className="w-8 h-8 rounded-lg bg-red-50 hover:bg-rose-500 hover:text-white text-red-500 flex items-center justify-center border border-red-100 transition-all shadow-sm"
+                                title="Excluir submissão definitivamente"
+                              >
+                                <i className="fas fa-trash-alt text-xs"></i>
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -1505,6 +1510,7 @@ const App: React.FC = () => {
                             onApprove={handleApproveDocument}
                             onDecline={handleDeclineDocument}
                             onDownload={handleDownload}
+                            onDelete={handleDeleteDocument}
                           />
                         ))}
                       </div>

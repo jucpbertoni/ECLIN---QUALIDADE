@@ -22,7 +22,7 @@
         "id": { "type": "string", "description": "Unique identifier for the document." },
         "title": { "type": "string", "description": "Title of the document." },
         "type": { "type": "string", "enum": ["pdf", "doc", "docx"], "description": "File type." },
-        "status": { "type": "string", "enum": ["published", "review"], "description": "Current status." },
+        "status": { "type": "string", "enum": ["published", "review", "pending", "signed", "approved", "rejected"], "description": "Current status." },
         "uploader": { "type": "string", "description": "Name of the person who uploaded it." },
         "uploadDate": { "type": "string", "description": "Date of upload." },
         "area": { "type": "string", "description": "Responsible area." },
