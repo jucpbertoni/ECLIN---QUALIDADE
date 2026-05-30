@@ -207,6 +207,8 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
     );
   }
 
+  const isCompleted = new Date(targetDateStr).getTime() <= Date.now();
+
   return (
     <div className="bg-brand-primary p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
@@ -225,27 +227,40 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
       <div className="relative z-10 space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-brand-secondary rounded-xl flex items-center justify-center text-brand-dark shadow-lg">
-            <i className="fas fa-certificate text-lg"></i>
+            <i className={`fas ${isCompleted ? 'fa-trophy text-amber-500 animate-bounce' : 'fa-certificate'} text-lg`}></i>
           </div>
           <div>
             <h4 className="text-sm font-black uppercase tracking-tight pr-8">{objective}</h4>
-            <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest">{subtitle}</p>
+            <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest">
+              {isCompleted ? 'Objetivo Alcançado!' : subtitle}
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: 'Dias', value: timeLeft.days },
-            { label: 'Hrs', value: timeLeft.hours },
-            { label: 'Min', value: timeLeft.minutes },
-            { label: 'Seg', value: timeLeft.seconds }
-          ].map((item, idx) => (
-            <div key={idx} className="bg-white/10 backdrop-blur-md rounded-xl p-2 text-center border border-white/10">
-              <p className="text-xl font-black leading-none">{item.value}</p>
-              <p className="text-[8px] font-bold uppercase tracking-widest mt-1 opacity-60">{item.label}</p>
-            </div>
-          ))}
-        </div>
+        {isCompleted ? (
+          <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center space-y-2 animate-pulse">
+            <p className="text-sm font-black uppercase tracking-wide text-brand-secondary">
+              🎉 Meta Conquistada!
+            </p>
+            <p className="text-[10px] font-bold text-slate-100 uppercase tracking-wider leading-relaxed">
+              Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Dias', value: timeLeft.days },
+              { label: 'Hrs', value: timeLeft.hours },
+              { label: 'Min', value: timeLeft.minutes },
+              { label: 'Seg', value: timeLeft.seconds }
+            ].map((item, idx) => (
+              <div key={idx} className="bg-white/10 backdrop-blur-md rounded-xl p-2 text-center border border-white/10">
+                <p className="text-xl font-black leading-none">{item.value}</p>
+                <p className="text-[8px] font-bold uppercase tracking-widest mt-1 opacity-60">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {impactPhrase && (
           <p className="text-[10px] font-extrabold opacity-80 text-center tracking-wide leading-relaxed italic mt-6 px-1 drop-shadow-sm line-clamp-3" title={impactPhrase}>
