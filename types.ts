@@ -17,6 +17,10 @@ export interface QualityDocument {
   expirationDate?: string;
   url?: string;
   fileData?: string;
+  uploaderEmail?: string;
+  uploaderName?: string;
+  uploaderArea?: string;
+  note?: string;
 }
 
 export interface MuralPost {
