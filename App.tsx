@@ -287,6 +287,10 @@ const App: React.FC = () => {
           setLoginStep('password');
           setNotification("E-mail identificado! Por favor, informe sua senha.");
         } else {
+          setFirstName('');
+          setLastName('');
+          setRegPassword('');
+          setRegConfirmPassword('');
           setLoginStep('register');
           setNotification("Primeiro acesso identificado! Preencha as informações para cadastrar seu perfil.");
         }
@@ -437,16 +441,19 @@ const App: React.FC = () => {
     reader.onload = async (e) => {
       const base64Data = e.target?.result as string;
       
-      const newDoc = {
+      const newDoc: any = {
         title: file.name,
         type: type,
         status: type === 'docx' ? 'pending' : 'published',
         uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
         uploadDate: new Date().toISOString().split('T')[0],
         area: type === 'pdf' ? selectedArea : (user?.areaBase || 'Qualidade'),
-        expirationDate: type === 'pdf' ? expirationDate : undefined,
-        fileData: base64Data // Store file content for download/preview
+        fileData: base64Data
       };
+
+      if (type === 'pdf' && expirationDate) {
+        newDoc.expirationDate = expirationDate;
+      }
 
       try {
         await addDoc(collection(db, 'documents'), newDoc);
@@ -459,19 +466,35 @@ const App: React.FC = () => {
         setExpirationDate('');
         setSelectedFile(null);
       } catch (error: any) {
-        handleFirestoreError(error, OperationType.CREATE, 'documents');
-        if (type === 'docx') {
-          // Fallback to directly emailing since database saving failed
-          setNotification("Não foi possível salvar no banco, mas abrindo seu e-mail para envio direto!");
-          triggerSubmissionEmail(file.name);
-          setSelectedFile(null);
-        } else {
-          if (error.message?.includes('permission-denied')) {
-            setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
-          } else if (error.message?.includes('too large')) {
-            setNotification("O arquivo final excedeu o limite do banco de dados (1MB). Tente um arquivo menor.");
+        console.warn("Falha ao salvar no banco com arquivo anexo, tentando salvar sem o anexo...", error);
+        
+        // Retry saving metadata only so the action is registered in the database, stripping the heavy base64 payload
+        try {
+          const metadataDoc = { ...newDoc, fileData: undefined, note: "Documento salvo apenas em metadados devido ao tamanho." };
+          // Clean undefined keys for security rules/Firebase Web Client
+          delete metadataDoc.fileData;
+          
+          await addDoc(collection(db, 'documents'), metadataDoc);
+          if (type === 'docx') {
+            setNotification("Sucesso! Registro de revisão criado. Abrindo seu e-mail corporativo para envio do arquivo...");
+            triggerSubmissionEmail(file.name);
           } else {
-            setNotification("Erro ao salvar no banco de dados. Verifique sua conexão.");
+            setNotification(`Sucesso! Metadados de "${file.name}" registrados, mas o arquivo é muito grande para visualização interna.`);
+          }
+          setExpirationDate('');
+          setSelectedFile(null);
+        } catch (retryError: any) {
+          handleFirestoreError(retryError, OperationType.CREATE, 'documents');
+          if (type === 'docx') {
+            setNotification("Não foi possível salvar no banco, mas abrindo seu e-mail para envio direto!");
+            triggerSubmissionEmail(file.name);
+            setSelectedFile(null);
+          } else {
+            if (retryError.message?.includes('permission-denied')) {
+              setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
+            } else {
+              setNotification("Erro ao salvar no banco de dados. Verifique sua conexão e tente novamente.");
+            }
           }
         }
       } finally {
@@ -816,7 +839,7 @@ const App: React.FC = () => {
                             type="file" 
                             accept="image/*"
                             onChange={handleMuralImageUpload}
-                            className="hidden"
+                            className="sr-only"
                             id="mural-image-upload"
                           />
                           <label 
@@ -958,7 +981,7 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="text-center space-y-4">
-                      <input type="file" accept=".pdf" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="hidden" id="pdf-upload" />
+                      <input type="file" accept=".pdf" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="sr-only" id="pdf-upload" />
                       {!selectedFile ? (
                         <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
                           Selecionar PDF
@@ -1016,7 +1039,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="border-4 border-dashed border-slate-100 rounded-[2rem] p-16 text-center space-y-6 hover:border-brand-primary/50 transition-all bg-slate-50/50">
-                  <input type="file" accept=".doc,.docx" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="hidden" id="docx-upload" />
+                  <input type="file" accept=".doc,.docx" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="sr-only" id="docx-upload" />
                   {!selectedFile ? (
                     <label htmlFor="docx-upload" className="inline-block px-10 py-4 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/10">
                       Procurar Word (.doc / .docx)
@@ -1094,6 +1117,8 @@ const App: React.FC = () => {
                     <div>
                       <input 
                         type="email"
+                        name="email"
+                        autoComplete="username email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="E-mail Corporativo"
@@ -1120,9 +1145,20 @@ const App: React.FC = () => {
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                       Digite sua senha de 6 dígitos numéricos:
                     </p>
+                    {/* Hidden email to anchor credentials managers */}
+                    <input 
+                      type="email" 
+                      name="email" 
+                      value={email} 
+                      readOnly 
+                      className="sr-only" 
+                      autoComplete="username" 
+                    />
                     <div>
                       <input 
                         type="password"
+                        name="password"
+                        autoComplete="current-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Senha de 6 dígitos"
@@ -1157,6 +1193,16 @@ const App: React.FC = () => {
 
                 {loginStep === 'register' && (
                   <form onSubmit={handleRegister} className="space-y-4">
+                    {/* Hidden email to anchor credentials managers and avoid mismatch on Name/Last Name */}
+                    <input 
+                      type="email" 
+                      name="email" 
+                      value={email} 
+                      readOnly 
+                      className="sr-only" 
+                      autoComplete="username email" 
+                    />
+                    
                     <div className="bg-brand-primary/5 p-4 rounded-xl border border-brand-primary/10">
                       <p className="text-[10px] text-brand-primary font-black uppercase tracking-wider mb-1">
                         PRIMEIRO ACESSO DETECTADO!
@@ -1174,6 +1220,8 @@ const App: React.FC = () => {
                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nome</label>
                         <input 
                           type="text"
+                          name="firstname"
+                          autoComplete="given-name"
                           value={firstName}
                           onChange={(e) => setFirstName(e.target.value)}
                           placeholder="Ex: Juliana"
@@ -1185,6 +1233,8 @@ const App: React.FC = () => {
                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sobrenome</label>
                         <input 
                           type="text"
+                          name="lastname"
+                          autoComplete="family-name"
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
                           placeholder="Ex: Bertoni"
@@ -1213,6 +1263,8 @@ const App: React.FC = () => {
                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Senha (6 dígitos)</label>
                         <input 
                           type="password"
+                          name="new-password"
+                          autoComplete="new-password"
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
                           placeholder="Senha de 6 dígitos"
@@ -1225,6 +1277,8 @@ const App: React.FC = () => {
                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Confirmar Senha</label>
                         <input 
                           type="password"
+                          name="confirm-password"
+                          autoComplete="new-password"
                           value={regConfirmPassword}
                           onChange={(e) => setRegConfirmPassword(e.target.value)}
                           placeholder="Repita a senha"
