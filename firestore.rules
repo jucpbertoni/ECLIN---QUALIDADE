@@ -60,6 +60,10 @@ service cloud.firestore {
     match /collaborators/{email} {
       allow read, write: if true;
     }
+
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
     
     // Default deny
     match /{document=**} {

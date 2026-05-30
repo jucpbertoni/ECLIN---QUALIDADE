@@ -1522,7 +1522,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="lg:col-span-4 space-y-10">
-            <Countdown />
+            <Countdown isAdmin={user?.role === 'admin'} />
 
             {!user && (
               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
