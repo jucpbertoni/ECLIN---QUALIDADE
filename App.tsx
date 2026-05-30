@@ -157,14 +157,13 @@ const DocumentCard = memo<DocumentCardProps>(({ doc, user, onEdit, onDelete, get
 
 interface PendingReviewCardProps {
   docItem: QualityDocument;
-  onApprove: (id: string, targetArea: string, expDate: string) => void;
-  onDecline: (id: string) => void;
+  onApprove: (id: string, comment: string) => void;
+  onDecline: (id: string, comment: string) => void;
   onDownload: (docItem: QualityDocument) => void;
 }
 
 const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, onDecline, onDownload }) => {
-  const [selectedArea, setSelectedArea] = useState(docItem.area || CONFIG.areas[0]);
-  const [expirationDate, setExpirationDate] = useState('');
+  const [comment, setComment] = useState('');
 
   return (
     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 transition-all flex flex-col gap-5 hover:border-brand-primary/20">
@@ -175,9 +174,27 @@ const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, on
           </div>
           <div className="min-w-0">
             <h4 className="font-black text-slate-800 text-sm leading-snug truncate max-w-[200px] sm:max-w-[350px]" title={docItem.title}>{docItem.title}</h4>
-            <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
-              Enviado em: {docItem.uploadDate}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                Enviado em: {docItem.uploadDate}
+              </p>
+              <span className="text-slate-200 text-xs hidden sm:inline">•</span>
+              {docItem.status === 'pending' && (
+                <span className="bg-amber-100 text-amber-700 font-black text-[8px] uppercase px-2 py-0.5 rounded-full tracking-wider">
+                  Aguardando Revisão
+                </span>
+              )}
+              {docItem.status === 'approved' && (
+                <span className="bg-emerald-100 text-emerald-800 font-black text-[8px] uppercase px-2 py-0.5 rounded-full tracking-wider flex items-center gap-1">
+                  <i className="fas fa-check-circle"></i> Aprovado
+                </span>
+              )}
+              {docItem.status === 'rejected' && (
+                <span className="bg-rose-100 text-rose-800 font-black text-[8px] uppercase px-2 py-0.5 rounded-full tracking-wider flex items-center gap-1">
+                  <i className="fas fa-times-circle"></i> Recusado
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <button 
@@ -210,53 +227,51 @@ const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, on
       </div>
 
       {docItem.note && (
-        <div className="p-3 bg-amber-50 text-amber-800 border border-amber-100 rounded-xl text-[10px] font-semibold">
-          <i className="fas fa-exclamation-triangle mr-2"></i> {docItem.note}
+        <div className={`p-4 border rounded-xl text-xs ${docItem.status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-rose-50 text-rose-800 border-rose-100'}`}>
+          <p className="font-black text-[9px] uppercase tracking-wider mb-1 flex items-center gap-2">
+            <i className={`fas ${docItem.status === 'approved' ? 'fa-check' : 'fa-exclamation-triangle'}`}></i> 
+            Observações / Retorno da Qualidade
+          </p>
+          <p className="font-semibold">{docItem.note}</p>
         </div>
       )}
 
-      <div className="border-t border-slate-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Área de Homologação</label>
-          <select 
-            value={selectedArea}
-            onChange={(e) => setSelectedArea(e.target.value)}
-            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-brand-primary outline-none"
-          >
-            {CONFIG.areas.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+      {docItem.status === 'pending' && (
+        <div className="border-t border-slate-100 pt-4 flex flex-col gap-3">
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block font-bold">Observações / Justificativa</label>
+            <textarea 
+              rows={2}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Digite o feedback para o colaborador (obrigatório em caso de reprovação)..."
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-brand-primary outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button 
+              onClick={() => {
+                if (!comment.trim()) {
+                  alert("Por favor, preencha o campo de Justificativa para reprovar.");
+                  return;
+                }
+                onDecline(docItem.id, comment);
+              }}
+              className="px-4 py-2 border border-red-200 hover:bg-rose-50 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+              Reprovar
+            </button>
+            <button 
+              onClick={() => {
+                onApprove(docItem.id, comment);
+              }}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-emerald-600/10"
+            >
+              Aprovar Documento
+            </button>
+          </div>
         </div>
-        <div className="space-y-1">
-          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Próxima Validade ONA</label>
-          <input 
-            type="date"
-            value={expirationDate}
-            onChange={(e) => setExpirationDate(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-brand-primary outline-none"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3 border-t border-slate-100 pt-3">
-        <button 
-          onClick={() => onDecline(docItem.id)}
-          className="px-4 py-2 border border-red-200 hover:bg-red-50 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-        >
-          Rejeitar
-        </button>
-        <button 
-          onClick={() => {
-            if (!expirationDate) {
-              alert("Por favor, informe uma data de validade ONA para publicar o documento.");
-              return;
-            }
-            onApprove(docItem.id, selectedArea, expirationDate);
-          }}
-          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-emerald-600/10"
-        >
-          Homologar & Publicar
-        </button>
-      </div>
+      )}
     </div>
   );
 });
@@ -276,6 +291,7 @@ const App: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [muralHeaderError, setMuralHeaderError] = useState(false);
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   // Ensure user role is correct if admin list changes or on initial load
   useEffect(() => {
@@ -513,7 +529,14 @@ const App: React.FC = () => {
     window.location.href = mailtoUrl;
   };
 
-  const sendEmailWithBackend = async (fileName: string, base64Data: string) => {
+  const sendEmailWithBackend = async (
+    type: 'submission' | 'approval' | 'rejection',
+    fileName: string,
+    uploaderName: string,
+    uploaderEmail: string,
+    uploaderArea: string,
+    justification?: string
+  ) => {
     try {
       const response = await fetch("/api/send-email", {
         method: "POST",
@@ -521,12 +544,13 @@ const App: React.FC = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          type,
           fileName,
-          fileData: base64Data,
-          userName: user?.name || "Não identificado",
-          userEmail: user?.email || "Não identificado",
-          userArea: user?.areaBase || "Não identificada",
+          userName: uploaderName,
+          userEmail: uploaderEmail,
+          userArea: uploaderArea,
           destinationEmail: CONFIG.notificationEmail,
+          justification,
         }),
       });
 
@@ -599,18 +623,9 @@ const App: React.FC = () => {
       try {
         await addDoc(collection(db, 'documents'), newDoc);
         if (type === 'docx') {
-          // Send real email with attachment first via server
-          const mailResult = await sendEmailWithBackend(file.name, base64Data);
-          if (mailResult?.success && !mailResult.warning) {
-            setNotification("Sucesso! O documento e as informações do remetente foram transmitidos por e-mail e salvos sob revisão!");
-          } else {
-            // Decouple UI state showing SMTP configuration instructions or fallback email client.
-            const warningMsg = mailResult?.warning 
-              ? "Revisão salva no banco de dados! No entanto, o envio por e-mail automático SMTP não está configurado. Abrindo e-mail corporativo..."
-              : "Revisão salva no banco de dados! Note que o envio automático falhou; abrindo cliente de e-mail de contingência.";
-            setNotification(warningMsg);
-            triggerSubmissionEmail(file.name);
-          }
+          // Send lightweight notification notice (no attachments)
+          await sendEmailWithBackend('submission', file.name, user?.name || '', user?.email || '', user?.areaBase || '');
+          setNotification("Sucesso! O documento foi submetido para a fila de revisão e a equipe de Qualidade foi notificada.");
         } else {
           setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
         }
@@ -627,13 +642,8 @@ const App: React.FC = () => {
           
           await addDoc(collection(db, 'documents'), metadataDoc);
           if (type === 'docx') {
-            const mailResult = await sendEmailWithBackend(file.name, base64Data);
-            if (mailResult?.success && !mailResult.warning) {
-              setNotification("Sucesso! Metadados registrados e e-mail com anexo transmitido via servidor!");
-            } else {
-              setNotification("Metadados registrados no banco! Abrindo seu e-mail corporativo para envio direto do arquivo...");
-              triggerSubmissionEmail(file.name);
-            }
+            await sendEmailWithBackend('submission', file.name, user?.name || '', user?.email || '', user?.areaBase || '');
+            setNotification("Metadados registrados na fila de revisão com sucesso! Notificação enviada.");
           } else {
             setNotification(`Sucesso! Metadados de "${file.name}" registrados, mas o arquivo é muito grande para visualização interna.`);
           }
@@ -641,16 +651,10 @@ const App: React.FC = () => {
           setSelectedFile(null);
         } catch (retryError: any) {
           handleFirestoreError(retryError, OperationType.CREATE, 'documents');
-          if (type === 'docx') {
-            setNotification("Não foi possível salvar no banco, mas abrindo seu e-mail para envio direto!");
-            triggerSubmissionEmail(file.name);
-            setSelectedFile(null);
+          if (retryError.message?.includes('permission-denied')) {
+            setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
           } else {
-            if (retryError.message?.includes('permission-denied')) {
-              setNotification("Erro de permissão no banco de dados. Por favor, tente novamente em instantes.");
-            } else {
-              setNotification("Erro ao salvar no banco de dados. Verifique sua conexão e tente novamente.");
-            }
+            setNotification("Erro ao salvar no banco de dados. Verifique sua conexão e tente novamente.");
           }
         }
       } finally {
@@ -771,42 +775,75 @@ const App: React.FC = () => {
     }
   }, [documents, user]);
 
-  const handleApproveDocument = useCallback(async (id: string, targetArea: string, expDate: string) => {
+  const handleApproveDocument = useCallback(async (id: string, comment: string) => {
     if (user?.role !== 'admin') {
-      setNotification("Apenas administradores podem homologar documentos.");
+      setNotification("Apenas administradores podem avaliar documentos.");
       return;
     }
+    const docItem = documents.find(d => d.id === id);
+    if (!docItem) return;
+
     try {
-      const updates: any = {
-        status: 'published',
-        area: targetArea
-      };
-      if (expDate) {
-        updates.expirationDate = expDate;
+      const finalComment = comment.trim() || "Documento aprovado na etapa de revisão da Qualidade.";
+      await updateDoc(doc(db, 'documents', id), {
+        status: 'approved',
+        note: finalComment
+      });
+
+      setNotification("Documento aprovado com sucesso! Enviando notificação...");
+
+      // Send lightweight email notice (no attachments)
+      if (docItem.uploaderEmail) {
+        await sendEmailWithBackend(
+          'approval', 
+          docItem.title, 
+          docItem.uploaderName || '', 
+          docItem.uploaderEmail || '', 
+          docItem.uploaderArea || '',
+          finalComment
+        );
       }
-      await updateDoc(doc(db, 'documents', id), updates);
-      setNotification("Documento aprovado e publicado com sucesso no acervo oficial!");
+      setNotification("Documento aprovado e colaborador notificado por e-mail!");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
-      setNotification("Erro ao aprovar documento. Verifique conexões.");
+      setNotification("Erro ao atualizar aprovação do documento.");
     }
-  }, [user]);
+  }, [documents, user]);
 
-  const handleDeclineDocument = useCallback(async (id: string) => {
+  const handleDeclineDocument = useCallback(async (id: string, comment: string) => {
     if (user?.role !== 'admin') {
-      setNotification("Apenas administradores podem rejeitar documentos.");
+      setNotification("Apenas administradores podem avaliar documentos.");
       return;
     }
-    if (window.confirm("Deseja realmente rejeitar e excluir esta submissão de documento pendente?")) {
-      try {
-        await deleteDoc(doc(db, 'documents', id));
-        setNotification("Submissão rejeitada e removida com sucesso.");
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
-        setNotification("Erro ao rejeitar documento.");
+    const docItem = documents.find(d => d.id === id);
+    if (!docItem) return;
+
+    try {
+      const finalComment = comment.trim() || "Documento precisa de ajustes de formatação/conteúdo.";
+      await updateDoc(doc(db, 'documents', id), {
+        status: 'rejected',
+        note: finalComment
+      });
+
+      setNotification("Documento recusado com sucesso! Enviando notificação...");
+
+      // Send lightweight email notice (no attachments)
+      if (docItem.uploaderEmail) {
+        await sendEmailWithBackend(
+          'rejection', 
+          docItem.title, 
+          docItem.uploaderName || '', 
+          docItem.uploaderEmail || '', 
+          docItem.uploaderArea || '',
+          finalComment
+        );
       }
+      setNotification("Retorno enviado e colaborador notificado do ajuste!");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
+      setNotification("Erro ao salvar recusa do documento.");
     }
-  }, [user]);
+  }, [documents, user]);
 
   const getExpirationAlert = useCallback((dateStr?: string) => {
     if (!dateStr) return null;
@@ -1272,6 +1309,85 @@ const App: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Meus Envios para Revisão (Exclusivo Auto-Autoria) */}
+                <div className="pt-6 border-t border-slate-100 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 text-brand-primary flex items-center justify-center">
+                      <i className="fas fa-history"></i>
+                    </div>
+                    <div>
+                      <h3 className="font-black text-brand-dark text-sm uppercase tracking-tight">Meus Envios para Revisão</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Acompanhamento de status das suas submissões ONA</p>
+                    </div>
+                  </div>
+
+                  {documents.filter(d => d.type === 'docx' && d.uploaderEmail === user.email).length === 0 ? (
+                    <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Nenhum envio registrado</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Seus envios Word (.docx) sob análise serão mostrados aqui.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {documents
+                        .filter(d => d.type === 'docx' && d.uploaderEmail === user.email)
+                        .map(myDoc => (
+                          <div key={myDoc.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-brand-primary/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="min-w-0 flex items-start gap-3">
+                              <div className="bg-blue-50 text-blue-600 p-2.5 rounded-xl shrink-0 mt-0.5">
+                                <i className="fas fa-file-word text-base"></i>
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-slate-800 text-xs truncate max-w-[200px] sm:max-w-md" title={myDoc.title}>{myDoc.title}</h4>
+                                <p className="text-[9px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">Enviado em: {myDoc.uploadDate}</p>
+                                
+                                {myDoc.note && (
+                                  <div className="mt-2 bg-white px-3 py-2 rounded-lg border border-slate-100 text-[10px] font-semibold text-slate-600">
+                                    <span className="font-extrabold text-[8px] text-slate-400 uppercase tracking-wider block mb-0.5">Retorno da Qualidade:</span>
+                                    {myDoc.note}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 shrink-0">
+                              {myDoc.status === 'pending' && (
+                                <span className="bg-amber-100 text-amber-700 font-black text-[9px] uppercase px-2.5 py-1 rounded-full tracking-wider">
+                                  Pendente
+                                </span>
+                              )}
+                              {myDoc.status === 'approved' && (
+                                <div className="text-right">
+                                  <span className="bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase px-2.5 py-1 rounded-full tracking-wider">
+                                    Aprovado
+                                  </span>
+                                  <p className="text-[8px] font-extrabold text-emerald-600 block mt-1 uppercase tracking-wider">Aguarde instruções de assinatura</p>
+                                </div>
+                              )}
+                              {myDoc.status === 'rejected' && (
+                                <div className="text-right">
+                                  <span className="bg-rose-100 text-rose-800 font-black text-[9px] uppercase px-2.5 py-1 rounded-full tracking-wider">
+                                    Ajuste Necessário
+                                  </span>
+                                  <p className="text-[8px] font-extrabold text-rose-500 block mt-1 uppercase tracking-wider">Verifique o retorno</p>
+                                </div>
+                              )}
+
+                              {myDoc.fileData && (
+                                <button 
+                                  onClick={() => handleDownload(myDoc)}
+                                  className="w-8 h-8 rounded-lg bg-white shadow-sm hover:bg-slate-100 text-slate-500 flex items-center justify-center border border-slate-200"
+                                  title="Baixar arquivo enviado"
+                                >
+                                  <i className="fas fa-download text-xs"></i>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1307,49 +1423,96 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'review' && user?.role === 'admin' && (
-              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden font-sans">
-                <div className="absolute top-0 right-0 w-32 h-32 brand-gradient opacity-10 rounded-bl-full"></div>
-                <div className="flex items-center gap-5 relative z-10">
-                  <div className="bg-brand-primary/10 w-14 h-14 rounded-2xl flex items-center justify-center text-brand-primary">
-                    <i className="fas fa-clipboard-list text-2xl"></i>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Painel de Revisão ONA</h2>
-                    <p className="text-xs font-bold text-brand-secondary uppercase tracking-widest mt-1">Homologação de novos documentos submetidos</p>
-                  </div>
-                </div>
+            {activeTab === 'review' && user?.role === 'admin' && (() => {
+              const reviewDocs = documents.filter(d => d.type === 'docx');
+              const pendingCount = reviewDocs.filter(d => d.status === 'pending').length;
+              const approvedCount = reviewDocs.filter(d => d.status === 'approved').length;
+              const rejectedCount = reviewDocs.filter(d => d.status === 'rejected').length;
 
-                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-xs font-medium leading-relaxed flex gap-4 relative z-10">
-                  <i className="fas fa-info-circle text-brand-secondary text-base self-start mt-0.5 animate-pulse"></i>
-                  <p>Aqui você pode gerenciar todas as submissões pendentes de revisão. O documento enviado em formato Word (.docx), bem como os metadados do colaborador remetente, estão centralizados abaixo. Você pode baixar o original para edição, ajustar a área de publicação ONA e aprovar o documento!</p>
-                </div>
+              const filteredReviewDocs = reviewDocs.filter(d => {
+                if (reviewStatusFilter === 'pending') return d.status === 'pending';
+                if (reviewStatusFilter === 'approved') return d.status === 'approved';
+                if (reviewStatusFilter === 'rejected') return d.status === 'rejected';
+                return true;
+              });
 
-                <div className="space-y-6 relative z-10">
-                  {documents.filter(d => d.status === 'pending').length === 0 ? (
-                    <div className="text-center py-16 px-4 border-2 border-dashed border-slate-100 rounded-[2rem] bg-slate-50/50">
-                      <div className="w-14 h-14 bg-emerald-50 text-emerald-500 flex items-center justify-center rounded-2xl mx-auto mb-4 text-xl">
-                        <i className="fas fa-check-double"></i>
+              return (
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden font-sans">
+                  <div className="absolute top-0 right-0 w-32 h-32 brand-gradient opacity-10 rounded-bl-full"></div>
+                  <div className="flex items-center justify-between relative z-10 flex-col sm:flex-row gap-4">
+                    <div className="flex items-center gap-5">
+                      <div className="bg-brand-primary/10 w-14 h-14 rounded-2xl flex items-center justify-center text-brand-primary">
+                        <i className="fas fa-clipboard-list text-2xl"></i>
                       </div>
-                      <p className="font-black text-slate-800 text-sm leading-none uppercase tracking-wider">Tudo em dia!</p>
-                      <p className="text-xs text-slate-400 mt-2 font-medium">Nenhum documento aguardando revisão da equipe de Qualidade no momento.</p>
+                      <div>
+                        <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Painel de Revisão ONA</h2>
+                        <p className="text-xs font-bold text-brand-secondary uppercase tracking-widest mt-1">Homologação de novos documentos submetidos</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {documents.filter(d => d.status === 'pending').map(docItem => (
-                        <PendingReviewCard 
-                          key={docItem.id} 
-                          docItem={docItem}
-                          onApprove={handleApproveDocument}
-                          onDecline={handleDeclineDocument}
-                          onDownload={handleDownload}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  </div>
+
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-xs font-medium leading-relaxed flex gap-4 relative z-10">
+                    <i className="fas fa-info-circle text-brand-secondary text-base self-start mt-0.5 animate-pulse"></i>
+                    <p>Aqui você pode gerenciar todas as submissões de documentos Word (.docx) feitas pelos colaboradores. O histórico é preservado de forma independente no banco de dados. Você poderá deliberar com um parecer e comunicar automaticamente o remetente por e-mail!</p>
+                  </div>
+
+                  {/* Filtros rápidos no Painel */}
+                  <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4 relative z-10">
+                    <button 
+                      onClick={() => setReviewStatusFilter('all')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reviewStatusFilter === 'all' ? 'bg-brand-primary text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      Todos ({reviewDocs.length})
+                    </button>
+                    <button 
+                      onClick={() => setReviewStatusFilter('pending')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${reviewStatusFilter === 'pending' ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${reviewStatusFilter === 'pending' ? 'bg-white' : 'bg-amber-400'}`}></span>
+                      Pendentes ({pendingCount})
+                    </button>
+                    <button 
+                      onClick={() => setReviewStatusFilter('approved')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${reviewStatusFilter === 'approved' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${reviewStatusFilter === 'approved' ? 'bg-white' : 'bg-emerald-400'}`}></span>
+                      Aprovados ({approvedCount})
+                    </button>
+                    <button 
+                      onClick={() => setReviewStatusFilter('rejected')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${reviewStatusFilter === 'rejected' ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${reviewStatusFilter === 'rejected' ? 'bg-white' : 'bg-rose-400'}`}></span>
+                      Recusados ({rejectedCount})
+                    </button>
+                  </div>
+
+                  <div className="space-y-6 relative z-10">
+                    {filteredReviewDocs.length === 0 ? (
+                      <div className="text-center py-16 px-4 border-2 border-dashed border-slate-100 rounded-[2rem] bg-slate-50/50">
+                        <div className="w-14 h-14 bg-slate-100 text-slate-400 flex items-center justify-center rounded-2xl mx-auto mb-4 text-xl">
+                          <i className="fas fa-folder-open"></i>
+                        </div>
+                        <p className="font-black text-slate-800 text-sm leading-none uppercase tracking-wider">Nenhum documento encontrado</p>
+                        <p className="text-xs text-slate-400 mt-2 font-medium">Nenhuma submissão de arquivo coincide com o filtro selecionado.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {filteredReviewDocs.map(docItem => (
+                          <PendingReviewCard 
+                            key={docItem.id} 
+                            docItem={docItem}
+                            onApprove={handleApproveDocument}
+                            onDecline={handleDeclineDocument}
+                            onDownload={handleDownload}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div className="lg:col-span-4 space-y-10">

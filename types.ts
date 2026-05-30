@@ -10,7 +10,7 @@ export interface QualityDocument {
   id: string;
   title: string;
   type: 'pdf' | 'docx';
-  status: 'published' | 'pending' | 'signed';
+  status: 'published' | 'pending' | 'signed' | 'approved' | 'rejected';
   uploader: string;
   uploadDate: string;
   area?: string;
