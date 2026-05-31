@@ -133,16 +133,16 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
   if (isEditing) {
     return (
       <div className="bg-[#0b1c24] border border-[#1b3c4a] p-6 sm:p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden transition-all duration-300">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-secondary/5 rounded-bl-full -mr-8 -mt-8"></div>
+        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/5 rounded-bl-full -mr-8 -mt-8"></div>
         
         <form onSubmit={handleSave} className="relative z-10 space-y-4">
           <div className="flex items-center gap-3 border-b border-white/10 pb-3">
-            <div className="w-8 h-8 bg-brand-secondary rounded-lg flex items-center justify-center text-brand-dark shadow-md">
+            <div className="w-8 h-8 bg-amber-400 rounded-lg flex items-center justify-center text-brand-dark shadow-md">
               <i className="fas fa-edit text-sm"></i>
             </div>
             <div>
               <h4 className="text-xs font-black uppercase tracking-tight text-white">Editar Meta e Contador</h4>
-              <p className="text-[9px] font-bold text-brand-secondary uppercase tracking-widest">Painel Administrativo ECLIN</p>
+              <p className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">Painel Administrativo ECLIN</p>
             </div>
           </div>
 
@@ -215,7 +215,7 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
             </button>
             <button 
               type="submit" 
-              className="px-4 py-2 bg-brand-secondary hover:bg-yellow-400 text-brand-dark font-black uppercase text-[10px] tracking-wider rounded-xl transition-all shadow-md shadow-brand-secondary/20"
+              className="px-4 py-2 bg-amber-400 hover:bg-yellow-400 text-brand-dark font-black uppercase text-[10px] tracking-wider rounded-xl transition-all shadow-md shadow-amber-400/20"
             >
               Salvar Alterações
             </button>
@@ -226,14 +226,14 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
   }
 
   return (
-    <div className="bg-[#0b1c24] border border-[#14313d] p-6 sm:p-8 lg:p-10 rounded-[2rem] text-white shadow-xl relative overflow-hidden group transition-all duration-300 hover:shadow-2xl hover:border-brand-primary/30">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/5 rounded-bl-full -mr-8 -mt-8 transition-all duration-500 group-hover:scale-110 group-hover:bg-brand-primary/10"></div>
+    <div className="bg-[#0b1c24] border border-[#14313d] p-6 sm:p-8 lg:p-10 rounded-[2rem] text-white shadow-xl relative overflow-hidden group transition-all duration-300 hover:shadow-2xl hover:border-amber-400/30">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/5 rounded-bl-full -mr-8 -mt-8 transition-all duration-500 group-hover:scale-110 group-hover:bg-amber-400/10"></div>
       
       {/* Admin Setting Button */}
       {isAdmin && (
         <button 
           onClick={handleStartEditing}
-          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/5 hover:bg-brand-secondary hover:text-brand-dark hover:scale-110 flex items-center justify-center text-slate-300 hover:text-brand-dark transition-all border border-white/11 shadow-sm"
+          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/5 hover:bg-amber-400 hover:text-brand-dark hover:scale-110 flex items-center justify-center text-slate-300 hover:text-brand-dark transition-all border border-white/11 shadow-sm"
           title="Editar meta e contador"
         >
           <i className="fas fa-cog text-xs"></i>
@@ -242,21 +242,21 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
 
       <div className="relative z-10 space-y-6">
         <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-primary/10 rounded-xl flex items-center justify-center text-brand-primary shadow-inner border border-brand-primary/25 shrink-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-400/10 rounded-xl flex items-center justify-center text-amber-400 shadow-inner border border-amber-400/25 shrink-0">
             <i className={`fas ${isCompleted ? 'fa-trophy text-amber-400 animate-bounce' : 'fa-certificate'} text-base sm:text-lg`}></i>
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight text-white truncate pr-8" title={objective}>
               {objective}
             </h4>
-            <p className="text-[9px] sm:text-[10px] font-black text-brand-secondary uppercase tracking-widest mt-0.5 truncate">
+            <p className="text-[9px] sm:text-[10px] font-black text-amber-400 uppercase tracking-widest mt-0.5 truncate">
               {isCompleted ? 'Objetivo Alcançado!' : subtitle}
             </p>
           </div>
         </div>
 
         {isCompleted ? (
-          <div className="bg-[#14313d] rounded-2xl p-4 border border-brand-primary/20 text-center space-y-2 animate-feed shadow-inner">
+          <div className="bg-[#14313d] rounded-2xl p-4 border border-amber-400/20 text-center space-y-2 animate-feed shadow-inner">
             <p className="text-xs sm:text-sm font-black uppercase tracking-wide text-amber-400 flex items-center justify-center gap-2">
               🎉 Meta Conquistada!
             </p>
@@ -274,7 +274,7 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
             ].map((item, idx) => (
               <div key={idx} className="bg-slate-900/60 backdrop-blur-md rounded-xl p-2.5 sm:p-3 text-center border border-white/5 transition-all duration-300 hover:bg-slate-900/80">
                 <p className="text-lg sm:text-xl md:text-2xl font-black leading-none text-white tracking-tight">{item.value}</p>
-                <p className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-widest mt-1 text-slate-400">{item.label}</p>
+                <p className="text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-widest mt-1 text-slate-300">{item.label}</p>
               </div>
             ))}
           </div>
