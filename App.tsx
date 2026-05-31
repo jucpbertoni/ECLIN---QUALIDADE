@@ -588,17 +588,11 @@ const App: React.FC = () => {
     }
     
     const file = selectedFile;
+    const isTooLarge = file.size > 0.75 * 1024 * 1024;
 
-    // Firestore has a 1MB limit per document.
-    // Base64 encoding increases size by ~33%, so we limit original file to ~750KB.
-    if (file.size > 0.75 * 1024 * 1024) {
-      if (type === 'docx') {
-        setNotification("O arquivo excedeu 750KB (limite de dados do portal), mas você pode enviá-lo diretamente por e-mail! Abrindo e-mail...");
-        triggerSubmissionEmail(file.name);
-        setSelectedFile(null);
-      } else {
-        setNotification("O arquivo é muito grande (máximo 750KB para garantir o salvamento). Por favor, utilize arquivos menores.");
-      }
+    // For PDFs, we enforce maximum size
+    if (type === 'pdf' && isTooLarge) {
+      setNotification("O arquivo é muito grande (máximo 750KB para garantir o salvamento). Por favor, reduza o tamanho do PDF.");
       return;
     }
 
@@ -608,6 +602,34 @@ const App: React.FC = () => {
     }
 
     setIsUploading(true);
+
+    if (type === 'docx' && isTooLarge) {
+      // Inserção direta de metadados para arquivos grandes para evitar o popup de email fallback
+      const newDoc: any = {
+        title: file.name,
+        type: type,
+        status: 'pending',
+        uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
+        uploaderEmail: user?.email || '',
+        uploaderName: user?.name || '',
+        uploaderArea: user?.areaBase || '',
+        uploadDate: new Date().toISOString().split('T')[0],
+        area: user?.areaBase || 'Qualidade',
+        note: "Documento registrado por metadados devido ao tamanho."
+      };
+
+      try {
+        await addDoc(collection(db, 'documents'), newDoc);
+        setNotification("O envio foi registrado! Como o arquivo é muito grande (máximo 750KB), envie o arquivo à parte por e-mail para qualidade@eclin.com.br.");
+        setSelectedFile(null);
+      } catch (error: any) {
+        handleFirestoreError(error, OperationType.CREATE, 'documents');
+        setNotification("Erro ao registrar os metadados do documento.");
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
