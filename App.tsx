@@ -1129,7 +1129,7 @@ const App: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                   <div>
                     <h2 className="text-3xl font-black text-brand-dark tracking-tight">Acervo {CONFIG.brandName}</h2>
-                    <p className="text-sm text-slate-500 font-medium">Controle de normas e protocolos assistenciais.</p>
+                    <p className="text-sm text-slate-500 font-medium">Documentos validados.</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="relative">
@@ -1761,8 +1761,7 @@ const App: React.FC = () => {
             <div className="text-center md:text-right">
               <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">© 2026 {CONFIG.portalTitle} {CONFIG.brandName}.</p>
               <div className="flex justify-center md:justify-end gap-6 text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">
-                <span>Conformidade</span>
-                <span>Suporte</span>
+                <span>Para suporte envie e-mail para qualidade@eclin.com.br</span>
               </div>
             </div>
           </div>
