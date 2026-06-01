@@ -363,12 +363,14 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Memorização para evitar flickering
+  // Memorização para evitar flickering (Ordenado Alfabeticamente)
   const filteredDocuments = useMemo(() => {
-    return documents.filter(d => 
-      (selectedFilterArea === 'Todas as áreas' || d.area === selectedFilterArea) &&
-      d.title.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return [...documents]
+      .filter(d => 
+        (selectedFilterArea === 'Todas as áreas' || d.area === selectedFilterArea) &&
+        d.title.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' }));
   }, [documents, selectedFilterArea, searchTerm]);
 
   const [selectedPost, setSelectedPost] = useState<MuralPost | null>(null);
@@ -1429,7 +1431,10 @@ const App: React.FC = () => {
                 </div>
                 
                 <div className="space-y-4 relative z-10">
-                  {documents.filter(d => d.status === 'published' || d.status === 'signed').map(doc => (
+                  {[...documents]
+                    .filter(d => d.status === 'published' || d.status === 'signed')
+                    .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' }))
+                    .map(doc => (
                     <div key={doc.id} className="p-5 flex items-center justify-between group bg-slate-50/50 rounded-2xl border border-transparent hover:border-brand-secondary hover:bg-white transition-all">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
