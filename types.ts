@@ -21,6 +21,9 @@ export interface QualityDocument {
   uploaderName?: string;
   uploaderArea?: string;
   note?: string;
+  docType?: string;
+  version?: string;
+  emissionDate?: string;
 }
 
 export interface MuralPost {

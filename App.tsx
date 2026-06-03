@@ -126,10 +126,18 @@ const DocumentCard = memo<DocumentCardProps>(({ doc, user, onEdit, onDelete, get
       </div>
       <div className="flex-1 min-w-0">
         <h4 className="font-black text-slate-800 text-sm mb-2 group-hover:text-brand-primary transition-colors leading-tight">{doc.title}</h4>
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          <span className="px-2 py-0.5 bg-slate-100 text-[8px] font-black uppercase text-slate-500 rounded">
+            {doc.docType || 'Procedimento'}
+          </span>
+          <span className="px-2 py-0.5 bg-brand-primary/10 text-[8px] font-black uppercase text-brand-primary rounded">
+            v{doc.version || '1.0'}
+          </span>
+        </div>
         <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
           <span>Validade: {doc.expirationDate}</span>
           <span className="w-1 h-1 rounded-full bg-slate-200"></span>
-          <span>{doc.uploadDate}</span>
+          <span>{doc.emissionDate || doc.uploadDate}</span>
         </div>
       </div>
       <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
@@ -288,12 +296,28 @@ const PendingReviewCard = memo<PendingReviewCardProps>(({ docItem, onApprove, on
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'public' | 'upload' | 'signed' | 'mural' | 'review'>('mural');
+  const [activeTab, setActiveTab] = useState<'public' | 'upload' | 'signed' | 'mural' | 'review' | 'reports'>('mural');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedArea, setSelectedArea] = useState(CONFIG.areas[0]);
   const [selectedFilterArea, setSelectedFilterArea] = useState<string>('Todas as áreas');
   const [expirationDate, setExpirationDate] = useState('');
+
+  // Upload custom fields
+  const [customDocTitle, setCustomDocTitle] = useState('');
+  const [customDocType, setCustomDocType] = useState('Procedimento');
+  const [customDocVersion, setCustomDocVersion] = useState('1.0');
+  const [customEmissionDate, setCustomEmissionDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // Document Editing Modal
+  const [isEditingDoc, setIsEditingDoc] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editDocTitle, setEditDocTitle] = useState('');
+  const [editDocArea, setEditDocArea] = useState('');
+  const [editDocType, setEditDocType] = useState('Procedimento');
+  const [editDocVersion, setEditDocVersion] = useState('1.0');
+  const [editDocEmissionDate, setEditDocEmissionDate] = useState('');
+  const [editDocExpirationDate, setEditDocExpirationDate] = useState('');
   
   const [muralPosts, setMuralPosts] = useState<MuralPost[]>([]);
   const [documents, setDocuments] = useState<QualityDocument[]>([]);
@@ -605,10 +629,19 @@ const App: React.FC = () => {
 
     setIsUploading(true);
 
+    const resetUploadStates = () => {
+      setExpirationDate('');
+      setSelectedFile(null);
+      setCustomDocTitle('');
+      setCustomDocType('Procedimento');
+      setCustomDocVersion('1.0');
+      setCustomEmissionDate(new Date().toISOString().split('T')[0]);
+    };
+
     if (type === 'docx' && isTooLarge) {
       // Inserção direta de metadados para arquivos grandes para evitar o popup de email fallback
       const newDoc: any = {
-        title: file.name,
+        title: customDocTitle || file.name,
         type: type,
         status: 'pending',
         uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
@@ -617,13 +650,17 @@ const App: React.FC = () => {
         uploaderArea: user?.areaBase || '',
         uploadDate: new Date().toISOString().split('T')[0],
         area: user?.areaBase || 'Qualidade',
+        docType: customDocType,
+        version: customDocVersion,
+        emissionDate: customEmissionDate,
+        expirationDate: expirationDate || '',
         note: "Documento registrado por metadados devido ao tamanho."
       };
 
       try {
         await addDoc(collection(db, 'documents'), newDoc);
         setNotification("O envio foi registrado! Como o arquivo é muito grande (máximo 750KB), envie o arquivo à parte por e-mail para qualidade@eclin.com.br.");
-        setSelectedFile(null);
+        resetUploadStates();
       } catch (error: any) {
         handleFirestoreError(error, OperationType.CREATE, 'documents');
         setNotification("Erro ao registrar os metadados do documento.");
@@ -638,7 +675,7 @@ const App: React.FC = () => {
       const base64Data = e.target?.result as string;
       
       const newDoc: any = {
-        title: file.name,
+        title: customDocTitle || file.name,
         type: type,
         status: type === 'docx' ? 'pending' : 'published',
         uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
@@ -647,22 +684,21 @@ const App: React.FC = () => {
         uploaderArea: user?.areaBase || '',
         uploadDate: new Date().toISOString().split('T')[0],
         area: type === 'pdf' ? selectedArea : (user?.areaBase || 'Qualidade'),
+        docType: customDocType,
+        version: customDocVersion,
+        emissionDate: customEmissionDate,
+        expirationDate: expirationDate || '',
         fileData: base64Data
       };
-
-      if (type === 'pdf' && expirationDate) {
-        newDoc.expirationDate = expirationDate;
-      }
 
       try {
         await addDoc(collection(db, 'documents'), newDoc);
         if (type === 'docx') {
           setNotification("Sucesso! O documento foi submetido com sucesso para a fila de revisão da Qualidade.");
         } else {
-          setNotification(`Sucesso! Arquivo "${file.name}" enviado para o acervo.`);
+          setNotification(`Sucesso! Arquivo "${customDocTitle || file.name}" enviado para o acervo.`);
         }
-        setExpirationDate('');
-        setSelectedFile(null);
+        resetUploadStates();
       } catch (error: any) {
         console.warn("Falha ao salvar no banco com arquivo anexo, tentando salvar sem o anexo...", error);
         
@@ -676,10 +712,9 @@ const App: React.FC = () => {
           if (type === 'docx') {
             setNotification("Sucesso! Metadados registrados com sucesso na fila de revisão.");
           } else {
-            setNotification(`Sucesso! Metadados de "${file.name}" registrados, mas o arquivo é muito grande para visualização interna.`);
+            setNotification(`Sucesso! Metadados de "${customDocTitle || file.name}" registrados, mas o arquivo é muito grande para visualização interna.`);
           }
-          setExpirationDate('');
-          setSelectedFile(null);
+          resetUploadStates();
         } catch (retryError: any) {
           handleFirestoreError(retryError, OperationType.CREATE, 'documents');
           if (retryError.message?.includes('permission-denied')) {
@@ -800,25 +835,86 @@ const App: React.FC = () => {
     }
   }, [documents, user]);
 
-  const handleEditDocument = useCallback(async (id: string) => {
+  const handleEditDocument = useCallback((id: string) => {
     if (user?.role !== 'admin') {
       setNotification("Apenas administradores podem editar documentos.");
       return;
     }
     const docItem = documents.find(d => d.id === id);
     if (!docItem) return;
-    
-    const newTitle = window.prompt("Novo título para o documento:", docItem.title);
-    if (newTitle && newTitle !== docItem.title) {
-      try {
-        await updateDoc(doc(db, 'documents', id), { title: newTitle });
-        setNotification("Documento atualizado com sucesso.");
-      } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
-        setNotification("Erro ao atualizar documento. Verifique suas permissões.");
-      }
-    }
+
+    setEditingDocId(id);
+    setEditDocTitle(docItem.title || '');
+    setEditDocArea(docItem.area || CONFIG.areas[0]);
+    setEditDocType(docItem.docType || 'Procedimento');
+    setEditDocVersion(docItem.version || '1.0');
+    setEditDocEmissionDate(docItem.emissionDate || docItem.uploadDate || new Date().toISOString().split('T')[0]);
+    setEditDocExpirationDate(docItem.expirationDate || '');
+    setIsEditingDoc(true);
   }, [documents, user]);
+
+  const handleSaveDocEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDocId) return;
+
+    try {
+      await updateDoc(doc(db, 'documents', editingDocId), {
+        title: editDocTitle,
+        area: editDocArea,
+        docType: editDocType,
+        version: editDocVersion,
+        emissionDate: editDocEmissionDate,
+        expirationDate: editDocExpirationDate
+      });
+      setNotification("Documento atualizado com sucesso!");
+      setIsEditingDoc(false);
+      setEditingDocId(null);
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.UPDATE, `documents/${editingDocId}`);
+      setNotification("Erro ao atualizar o documento.");
+    }
+  };
+
+  const downloadListaMestra = () => {
+    // Only documents in the acervo (or all)
+    const activeDocs = documents.filter(d => d.status === 'published' || d.status === 'signed' || d.status === 'approved');
+    
+    // Headers
+    const headers = [
+      'Nome do Documento',
+      'Área Responsável',
+      'Data da Emissão',
+      'Data de Validade',
+      'Tipo de Documento',
+      'Versão'
+    ];
+    
+    // Rows
+    const rows = activeDocs.map(d => [
+      d.title || '',
+      d.area || '',
+      d.emissionDate || d.uploadDate || '',
+      d.expirationDate || '',
+      d.docType || 'Procedimento',
+      d.version || '1.0'
+    ]);
+    
+    // Convert to CSV with semicolon delimiter (Portuguese standard for Excel double click)
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(r => r.map(val => `"${val.replace(/"/g, '""')}"`).join(';'))
+    ].join('\n');
+    
+    // UTF-8 BOM to display accented characters correctly in Excel
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `lista_mestra_qualidade_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleApproveDocument = useCallback(async (id: string, comment: string) => {
     if (user?.role !== 'admin') {
@@ -966,6 +1062,17 @@ const App: React.FC = () => {
                           {documents.filter(d => d.status === 'pending').length}
                         </span>
                       )}
+                    </button>
+                  </>
+                )}
+                {user?.email === 'qualidade@eclin.com.br' && (
+                  <>
+                    <div className="w-[1px] h-4 bg-slate-200 mx-2 hidden md:block"></div>
+                    <button 
+                      onClick={() => setActiveTab('reports')}
+                      className={`px-3 md:px-4 py-2 text-[10px] md:text-xs font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap relative ${activeTab === 'reports' ? 'text-brand-primary bg-brand-primary/5' : 'text-slate-400 hover:text-brand-primary hover:bg-slate-50'}`}
+                    >
+                      Relatórios
                     </button>
                   </>
                 )}
@@ -1223,50 +1330,125 @@ const App: React.FC = () => {
                       <p className="text-slate-500 max-w-sm mx-auto font-medium text-xs">Preencha os dados obrigatórios para publicação.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Área Responsável</label>
-                        <select 
-                          value={selectedArea}
-                          onChange={(e) => setSelectedArea(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
-                        >
-                          {CONFIG.areas.map(a => <option key={a} value={a}>{a}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Validade</label>
-                        <input 
-                          type="date"
-                          value={expirationDate}
-                          onChange={(e) => setExpirationDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
-                        />
-                      </div>
-                    </div>
-
                     <div className="text-center space-y-4">
-                      <input type="file" accept=".pdf" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="sr-only" id="pdf-upload" />
+                      <input 
+                        type="file" 
+                        accept=".pdf" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setSelectedFile(file);
+                          if (file) {
+                            const lastDot = file.name.lastIndexOf('.');
+                            const nameWithoutExt = lastDot !== -1 ? file.name.substring(0, lastDot) : file.name;
+                            setCustomDocTitle(nameWithoutExt);
+                          } else {
+                            setCustomDocTitle('');
+                          }
+                        }} 
+                        className="sr-only" 
+                        id="pdf-upload" 
+                      />
                       {!selectedFile ? (
                         <label htmlFor="pdf-upload" className="inline-block px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] cursor-pointer shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all">
                           Selecionar PDF
                         </label>
                       ) : (
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="flex items-center gap-3 bg-slate-50 px-6 py-3 rounded-xl border border-slate-100">
-                            <i className="fas fa-file-pdf text-brand-primary"></i>
-                            <span className="text-xs font-bold text-slate-700 truncate max-w-[250px]">{selectedFile.name}</span>
-                            <button onClick={() => setSelectedFile(null)} className="text-slate-400 hover:text-red-500 ml-2">
-                              <i className="fas fa-times"></i>
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-left space-y-4 max-w-2xl mx-auto">
+                          <h4 className="font-black text-xs text-brand-dark uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
+                            <i className="fas fa-info-circle text-brand-primary"></i> Informações do Documento
+                          </h4>
+                          
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Título do Documento</label>
+                            <input 
+                              type="text"
+                              value={customDocTitle}
+                              onChange={(e) => setCustomDocTitle(e.target.value)}
+                              className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              placeholder="Digite o título oficial"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Documento</label>
+                              <select 
+                                value={customDocType}
+                                onChange={(e) => setCustomDocType(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              >
+                                <option value="Procedimento font-bold">Procedimento</option>
+                                <option value="Procedimento">Procedimento</option>
+                                <option value="Norma">Norma</option>
+                                <option value="Manual">Manual</option>
+                                <option value="Outro">Outro</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Versão do Documento</label>
+                              <input 
+                                type="text"
+                                value={customDocVersion}
+                                onChange={(e) => setCustomDocVersion(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                                placeholder="Ex: 1.0"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Emissão (Data do Documento)</label>
+                              <input 
+                                type="date"
+                                value={customEmissionDate}
+                                onChange={(e) => setCustomEmissionDate(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Validade</label>
+                              <input 
+                                type="date"
+                                value={expirationDate}
+                                onChange={(e) => setExpirationDate(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Área Responsável</label>
+                              <select 
+                                value={selectedArea}
+                                onChange={(e) => setSelectedArea(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              >
+                                {CONFIG.areas.map(a => <option key={a} value={a}>{a}</option>)}
+                              </select>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-100 self-end h-[42px] overflow-hidden">
+                              <i className="fas fa-file-pdf text-brand-primary shrink-0"></i>
+                              <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]" title={selectedFile.name}>{selectedFile.name}</span>
+                              <button onClick={() => setSelectedFile(null)} className="text-slate-400 hover:text-red-500 ml-auto p-1">
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 text-center">
+                            <button 
+                              onClick={() => handleFileUpload('pdf')} 
+                              disabled={isUploading}
+                              className="w-full sm:w-auto px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all disabled:opacity-50"
+                            >
+                              {isUploading ? 'Enviando...' : 'Confirmar e Publicar'}
                             </button>
                           </div>
-                          <button 
-                            onClick={() => handleFileUpload('pdf')} 
-                            disabled={isUploading}
-                            className="px-10 py-4 brand-gradient text-white rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:scale-105 transition-all disabled:opacity-50"
-                          >
-                            {isUploading ? 'Enviando...' : 'Confirmar e Publicar'}
-                          </button>
                         </div>
                       )}
                     </div>
@@ -1546,6 +1728,121 @@ const App: React.FC = () => {
                 </div>
               );
             })()}
+
+            {activeTab === 'reports' && user?.email === 'qualidade@eclin.com.br' && (
+              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden font-sans">
+                <div className="absolute top-0 right-0 w-32 h-32 brand-gradient opacity-10 rounded-bl-full"></div>
+                <div className="flex items-center justify-between relative z-10 flex-col sm:flex-row gap-4">
+                  <div className="flex items-center gap-5">
+                    <div className="bg-brand-primary/10 w-14 h-14 rounded-2xl flex items-center justify-center text-brand-primary">
+                      <i className="fas fa-file-invoice text-2xl"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-brand-dark uppercase tracking-tight">Relatórios e Controles</h2>
+                      <p className="text-xs font-bold text-brand-secondary uppercase tracking-widest mt-1 font-sans">Gestão da Qualidade e Lista Mestra de Documentos</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPI cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total no Acervo</div>
+                    <div className="text-3xl font-black text-brand-dark mt-2">
+                      {documents.filter(d => d.status === 'published' || d.status === 'signed' || d.status === 'approved').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Aguardando Revisão</div>
+                    <div className="text-3xl font-black text-brand-secondary mt-2">
+                      {documents.filter(d => d.status === 'pending').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Versão Mais Alta</div>
+                    <div className="text-3xl font-black text-brand-primary mt-2">
+                      v{documents.reduce((acc, current) => {
+                        const vNum = parseFloat(current.version || '1.0');
+                        return vNum > acc ? vNum : acc;
+                      }, 1.0).toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6 font-sans">
+                  <div className="space-y-1 text-left">
+                    <h3 className="font-black text-slate-800 text-sm leading-none uppercase tracking-wider font-sans">Exportar Lista Mestra Oficial</h3>
+                    <p className="text-xs text-slate-500 font-medium font-sans">Gere uma planilha Excel (.csv) com todos os documentos validados na ONA.</p>
+                  </div>
+                  <button
+                    onClick={downloadListaMestra}
+                    className="w-full md:w-auto px-8 py-3.5 brand-gradient text-white font-black text-xs uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-lg shadow-brand-primary/25 whitespace-nowrap flex items-center justify-center gap-2"
+                  >
+                    <i className="fas fa-file-excel text-base"></i> Baixar Lista Mestra Atualizada
+                  </button>
+                </div>
+
+                {/* Table of active documents */}
+                <div className="space-y-4">
+                  <h3 className="font-black text-[10px] text-slate-400 text-left uppercase tracking-widest ml-1">Visualização da Lista Mestra</h3>
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <table className="w-full text-left border-collapse bg-white">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-6 py-3.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Documento</th>
+                          <th className="px-6 py-3.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Área</th>
+                          <th className="px-6 py-3.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Tipo</th>
+                          <th className="px-6 py-3.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Versão</th>
+                          <th className="px-6 py-3.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Emissão</th>
+                          <th className="px-6 py-3.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Validade</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {documents.filter(d => d.status === 'published' || d.status === 'signed' || d.status === 'approved').map(doc => (
+                          <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <p className="text-xs font-black text-slate-800 leading-none">{doc.title}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-2.5 py-1 bg-slate-100 text-[8px] font-black text-slate-600 rounded uppercase tracking-wider font-sans">
+                                {doc.area}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs font-bold text-slate-600 font-sans">
+                                {doc.docType || 'Procedimento'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-2 py-0.5 bg-brand-primary/10 text-[9px] font-black text-brand-primary rounded">
+                                v{doc.version || '1.0'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 font-mono">
+                              <span className="text-xs font-medium text-slate-500">
+                                {doc.emissionDate || doc.uploadDate}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 font-mono">
+                              <span className="text-xs font-medium text-slate-500">
+                                {doc.expirationDate || 'N/A'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {documents.filter(d => d.status === 'published' || d.status === 'signed' || d.status === 'approved').length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                              Nenhum documento ativo no acervo.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-4 space-y-10">
@@ -1853,6 +2150,135 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Informações do Documento */}
+      {isEditingDoc && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
+          <div 
+            className="absolute inset-0 bg-brand-dark/80 backdrop-blur-sm"
+            onClick={() => {
+              setIsEditingDoc(false);
+              setEditingDocId(null);
+            }}
+          ></div>
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 flex flex-col p-10 max-h-[90vh]">
+            <button 
+              onClick={() => {
+                setIsEditingDoc(false);
+                setEditingDocId(null);
+              }}
+              className="absolute top-6 right-6 w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-800 transition-all z-20"
+            >
+              <i className="fas fa-times text-md"></i>
+            </button>
+            
+            <div className="flex items-center gap-5 mb-8 text-left">
+              <div className="bg-brand-primary/10 w-12 h-12 rounded-2xl flex items-center justify-center text-brand-primary">
+                <i className="fas fa-edit text-xl"></i>
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight leading-none">Editar Dados do Documento</h3>
+                <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest mt-1.5">Ajuste os parâmetros oficiais ONA</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveDocEdit} className="space-y-6 overflow-y-auto pr-2 no-scrollbar text-left">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Título do Documento</label>
+                <input 
+                  type="text"
+                  value={editDocTitle}
+                  onChange={(e) => setEditDocTitle(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-primary outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Documento</label>
+                  <select 
+                    value={editDocType}
+                    onChange={(e) => setEditDocType(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-primary outline-none"
+                  >
+                    <option value="Procedimento">Procedimento</option>
+                    <option value="Norma">Norma</option>
+                    <option value="Manual">Manual</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Versão do Documento</label>
+                  <input 
+                    type="text"
+                    value={editDocVersion}
+                    onChange={(e) => setEditDocVersion(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-primary outline-none"
+                    placeholder="Ex: 1.0"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Emissão (Data do Documento)</label>
+                  <input 
+                    type="date"
+                    value={editDocEmissionDate}
+                    onChange={(e) => setEditDocEmissionDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-primary outline-none"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data de Validade</label>
+                  <input 
+                    type="date"
+                    value={editDocExpirationDate}
+                    onChange={(e) => setEditDocExpirationDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-primary outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Área Responsável</label>
+                <select 
+                  value={editDocArea}
+                  onChange={(e) => setEditDocArea(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-brand-primary outline-none"
+                >
+                  {CONFIG.areas.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t border-slate-100 justify-end">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsEditingDoc(false);
+                    setEditingDocId(null);
+                  }}
+                  className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 transition-all font-sans"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="px-8 py-3 brand-gradient text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20 font-sans"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
