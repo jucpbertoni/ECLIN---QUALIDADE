@@ -43,6 +43,19 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
         if (data.targetDate) setTargetDateStr(data.targetDate);
         if (data.impactPhrase) setImpactPhrase(data.impactPhrase);
         if (data.completedMessage) setCompletedMessage(data.completedMessage);
+      } else {
+        // Se as configurações não existirem no Firestore, recria automaticamente com os valores padrão
+        try {
+          setDoc(docRef, {
+            objective: 'Rumo à ONA',
+            subtitle: 'Certificação 2026',
+            targetDate: '2026-06-30T00:00:00',
+            impactPhrase: '"A qualidade é a nossa prioridade absoluta."',
+            completedMessage: 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
+          });
+        } catch (e) {
+          console.error("Erro ao criar configurações iniciais do timer:", e);
+        }
       }
     }, (error) => {
       console.error("Erro ao escutar configurações:", error);

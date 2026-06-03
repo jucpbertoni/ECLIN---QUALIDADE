@@ -362,9 +362,22 @@ const App: React.FC = () => {
     initFirebase();
 
     const muralQuery = query(collection(db, 'mural_posts'), orderBy('date', 'desc'));
-    const unsubMural = onSnapshot(muralQuery, (snapshot) => {
+    const unsubMural = onSnapshot(muralQuery, async (snapshot) => {
       const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MuralPost));
       setMuralPosts(posts);
+
+      // Se o mural no Firestore estiver completamente vazio, recria com o post padrão CONFIG.muralPosts
+      if (snapshot.empty && !hasSeededMural.current) {
+        hasSeededMural.current = true;
+        try {
+          for (const post of CONFIG.muralPosts) {
+            const { id, ...postFields } = post;
+            await addDoc(collection(db, 'mural_posts'), postFields);
+          }
+        } catch (err) {
+          console.error("Erro ao auto-inicializar dados do mural:", err);
+        }
+      }
     });
 
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
