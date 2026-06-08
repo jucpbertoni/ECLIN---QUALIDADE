@@ -337,9 +337,7 @@ const App: React.FC = () => {
   const [expirationDate, setExpirationDate] = useState('');
 
   // Define Contingency (Local Storage) Mode to bypass Firebase quota or connection failures
-  const [useLocalStorageMode, setUseLocalStorageMode] = useState<boolean>(() => {
-    return localStorage.getItem('eclin_contingency_mode') === 'true';
-  });
+  const [useLocalStorageMode, setUseLocalStorageMode] = useState<boolean>(false);
 
   const saveMuralPostsLocal = (posts: MuralPost[]) => {
     localStorage.setItem('eclin_mural_posts', JSON.stringify(posts));
@@ -2475,6 +2473,24 @@ const App: React.FC = () => {
                         className="w-2/3 brand-gradient text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:brightness-110 transition-all shadow-lg shadow-brand-primary/20"
                       >
                         Entrar
+                      </button>
+                    </div>
+
+                    <div className="text-center pt-2 border-t border-slate-100 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFirstName(tempUserDoc?.firstName || '');
+                          setLastName(tempUserDoc?.lastName || '');
+                          setRegAreaBase(tempUserDoc?.areaBase || CONFIG.areas[0]);
+                          setRegPassword('');
+                          setRegConfirmPassword('');
+                          setLoginStep('register');
+                          setNotification("Modo de redefinição de acesso! Altere o seu cadastro ou digite sua nova senha abaixo.");
+                        }}
+                        className="text-[9px] font-black text-slate-400 hover:text-brand-primary uppercase tracking-widest transition-colors"
+                      >
+                        Esqueci minha senha / Redefinir Cadastro
                       </button>
                     </div>
                   </form>
