@@ -415,11 +415,23 @@ const App: React.FC = () => {
           console.error("Erro ao auto-inicializar dados do mural:", err);
         }
       }
+    }, (error) => {
+      console.warn("Erro ao carregar mural_posts:", error);
+      const errStr = String(error).toLowerCase();
+      if (errStr.includes("quota") || errStr.includes("exceeded") || errStr.includes("limit") || errStr.includes("recurso")) {
+        setNotification("O limite diário de leitura do banco de dados (Cota Gratuita do Firebase) foi atingido. O mural de recados não pôde ser carregado.");
+      }
     });
 
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QualityDocument));
       setDocuments(docs);
+    }, (error) => {
+      console.warn("Erro ao carregar documents:", error);
+      const errStr = String(error).toLowerCase();
+      if (errStr.includes("quota") || errStr.includes("exceeded") || errStr.includes("limit") || errStr.includes("recurso")) {
+        setNotification("O limite diário de leitura do banco de dados (Cota Gratuita do Firebase) foi atingido. Os documentos de qualidade não puderam ser exibidos no momento.");
+      }
     });
 
     return () => {
@@ -510,9 +522,18 @@ const App: React.FC = () => {
           setLoginStep('register');
           setNotification("Primeiro acesso identificado! Preencha as informações para cadastrar seu perfil.");
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Erro ao verificar e-mail:", error);
-        setNotification("Erro ao conectar com o banco de dados. Tente novamente.");
+        const errMessage = error instanceof Error ? error.message : String(error);
+        const errLower = errMessage.toLowerCase();
+        
+        if (errLower.includes("quota") || errLower.includes("exceeded") || errLower.includes("limit") || errLower.includes("recurso") || errLower.includes("cota") || errLower.includes("excedida")) {
+          setNotification("A cota gratuita diária de acessos ao banco de dados do Firebase (Firestore Spark Plan - 50.000 leituras/dia) foi esgotada hoje. O portal voltará a funcionar automaticamente amanhã à noite, ou você pode reativá-lo instantaneamente ativando o plano gratuito flexível Blaze no Console do Firebase.");
+        } else if (errLower.includes("permission") || errLower.includes("permissão") || errLower.includes("permission-denied")) {
+          setNotification("Erro de acesso/permissão ao banco de dados. Por favor, tente reiniciar seu navegador ou atualizar a página.");
+        } else {
+          setNotification("Erro ao conectar com o banco de dados. Tente novamente.");
+        }
       } finally {
         setIsAuthLoading(false);
       }
