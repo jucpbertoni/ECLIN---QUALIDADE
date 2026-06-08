@@ -62,14 +62,32 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 };
 
 const logAction = async (currentUser: User | null, action: string, details: string) => {
+  const isLocal = localStorage.getItem('eclin_contingency_mode') === 'true';
+  const newLog = {
+    timestamp: new Date().toISOString(),
+    userEmail: currentUser?.email || 'anonimo@eclin.com.br',
+    userName: currentUser ? `${currentUser.name} (${currentUser.areaBase || 'Eclin'})` : 'Visitante Anônimo',
+    action,
+    details
+  };
+
+  if (isLocal) {
+    try {
+      const rawLogs = localStorage.getItem('eclin_quality_logs');
+      const logs = rawLogs ? JSON.parse(rawLogs) : [];
+      const logsWithId = [{ id: Math.random().toString(36).substring(2, 9), ...newLog }, ...logs];
+      localStorage.setItem('eclin_quality_logs', JSON.stringify(logsWithId));
+      if ((window as any).setAuditLogsGlobal) {
+        (window as any).setAuditLogsGlobal(logsWithId);
+      }
+    } catch (e) {
+      console.warn("Erro local ao registrar log de auditoria:", e);
+    }
+    return;
+  }
+
   try {
-    await addDoc(collection(db, 'quality_logs'), {
-      timestamp: new Date().toISOString(),
-      userEmail: currentUser?.email || 'anonimo@eclin.com.br',
-      userName: currentUser ? `${currentUser.name} (${currentUser.areaBase || 'Eclin'})` : 'Visitante Anônimo',
-      action,
-      details
-    });
+    await addDoc(collection(db, 'quality_logs'), newLog);
   } catch (err) {
     console.warn("Erro ao registrar log de auditoria:", err);
   }
@@ -318,6 +336,21 @@ const App: React.FC = () => {
   const [selectedFilterArea, setSelectedFilterArea] = useState<string>('Todas as áreas');
   const [expirationDate, setExpirationDate] = useState('');
 
+  // Define Contingency (Local Storage) Mode to bypass Firebase quota or connection failures
+  const [useLocalStorageMode, setUseLocalStorageMode] = useState<boolean>(() => {
+    return localStorage.getItem('eclin_contingency_mode') === 'true';
+  });
+
+  const saveMuralPostsLocal = (posts: MuralPost[]) => {
+    localStorage.setItem('eclin_mural_posts', JSON.stringify(posts));
+    setMuralPosts(posts);
+  };
+
+  const saveDocumentsLocal = (docs: QualityDocument[]) => {
+    localStorage.setItem('eclin_documents', JSON.stringify(docs));
+    setDocuments(docs);
+  };
+
   // Upload custom fields
   const [customDocTitle, setCustomDocTitle] = useState('');
   const [customDocType, setCustomDocType] = useState('Procedimento');
@@ -372,6 +405,12 @@ const App: React.FC = () => {
       return;
     }
 
+    if (useLocalStorageMode) {
+      const rawLogs = localStorage.getItem('eclin_quality_logs');
+      setAuditLogs(rawLogs ? JSON.parse(rawLogs) : []);
+      return;
+    }
+
     const logsQuery = query(collection(db, 'quality_logs'), orderBy('timestamp', 'desc'));
     const unsub = onSnapshot(logsQuery, (snapshot) => {
       const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -381,10 +420,74 @@ const App: React.FC = () => {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user, useLocalStorageMode]);
 
   // Firebase Real-time Sync
   useEffect(() => {
+    if (useLocalStorageMode) {
+      setIsFirebaseReady(true);
+      
+      // 1. Carrega posts do mural
+      const rawMural = localStorage.getItem('eclin_mural_posts');
+      let localPosts = rawMural ? JSON.parse(rawMural) : [];
+      if (localPosts.length === 0) {
+        localPosts = CONFIG.muralPosts;
+        localStorage.setItem('eclin_mural_posts', JSON.stringify(localPosts));
+      }
+      setMuralPosts(localPosts);
+      
+      // 2. Carrega documentos
+      const rawDocs = localStorage.getItem('eclin_documents');
+      let localDocs = rawDocs ? JSON.parse(rawDocs) : [];
+      if (localDocs.length === 0) {
+        localDocs = [
+          {
+            id: 'doc-initial-1',
+            title: 'Manual de Segurança Geral do Paciente',
+            docType: 'Manual',
+            status: 'published',
+            version: '2.4',
+            uploader: 'Qualidade ECLIN (Modo Local)',
+            uploaderEmail: 'qualidade@eclin.com.br',
+            uploaderArea: 'Gestão de Qualidade e Biossegurança',
+            uploadDate: '2026-05-10',
+            emissionDate: '2026-05-10',
+            expirationDate: '2027-05-10',
+            area: 'Gestão de Qualidade e Biossegurança',
+            fileBase64PayLoad: 'sample'
+          },
+          {
+            id: 'doc-initial-2',
+            title: 'Procedimento Operacional Padrão - Higienização das Mãos',
+            docType: 'Procedimento',
+            status: 'published',
+            version: '1.0',
+            uploader: 'Administrador (Modo Local)',
+            uploaderEmail: 'juliana.engbio@gmail.com',
+            uploaderArea: 'Gestão de Qualidade e Biossegurança',
+            uploadDate: '2026-05-12',
+            emissionDate: '2026-05-12',
+            expirationDate: '2028-05-12',
+            area: 'Liderança Organizacional',
+            fileBase64PayLoad: 'sample'
+          }
+        ];
+        localStorage.setItem('eclin_documents', JSON.stringify(localDocs));
+      }
+      setDocuments(localDocs);
+      
+      // 3. Carrega logs de auditoria
+      const rawLogs = localStorage.getItem('eclin_quality_logs');
+      setAuditLogs(rawLogs ? JSON.parse(rawLogs) : []);
+
+      // Registra a função globalmente para logAction atualizar o state
+      (window as any).setAuditLogsGlobal = (updatedLogs: any[]) => {
+        setAuditLogs(updatedLogs);
+      };
+      
+      return;
+    }
+
     const initFirebase = async () => {
       try {
         await signInAnonymously(auth);
@@ -438,7 +541,7 @@ const App: React.FC = () => {
       unsubMural();
       unsubDocs();
     };
-  }, []);
+  }, [useLocalStorageMode]);
 
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
@@ -497,6 +600,53 @@ const App: React.FC = () => {
         return;
       }
       setIsAuthLoading(true);
+
+      if (useLocalStorageMode) {
+        try {
+          const rawCollab = localStorage.getItem('eclin_collaborators');
+          const collaborators = rawCollab ? JSON.parse(rawCollab) : {};
+          const localCollab = collaborators[cleanEmail];
+          
+          if (localCollab) {
+            setTempUserDoc(localCollab);
+            setLoginStep('password');
+            setNotification("E-mail identificado localmente! Por favor, informe sua senha.");
+          } else {
+            const isAdmin = checkIsAdmin(cleanEmail);
+            if (isAdmin) {
+              const defaultAdmin = {
+                email: cleanEmail,
+                firstName: cleanEmail.split('@')[0].split('.')[0] || "Administrador",
+                lastName: "Eclin",
+                areaBase: "Gestão de Qualidade e Biossegurança",
+                password: "123456",
+                role: "admin",
+                createdAt: new Date().toISOString()
+              };
+              collaborators[cleanEmail] = defaultAdmin;
+              localStorage.setItem('eclin_collaborators', JSON.stringify(collaborators));
+              
+              setTempUserDoc(defaultAdmin);
+              setLoginStep('password');
+              setNotification("Acesso Administrador configurado de emergência! Digite a senha padrão '123456' para entrar.");
+            } else {
+              setFirstName('');
+              setLastName('');
+              setRegPassword('');
+              setRegConfirmPassword('');
+              setLoginStep('register');
+              setNotification("Primeiro acesso identificado localmente! Preencha as informações para cadastrar seu perfil.");
+            }
+          }
+        } catch (localErr) {
+          console.error("Erro local ao carregar colaborador:", localErr);
+          setNotification("Erro local na leitura de dados.");
+        } finally {
+          setIsAuthLoading(false);
+        }
+        return;
+      }
+
       try {
         const docRef = doc(db, 'collaborators', cleanEmail);
         let docSnap;
@@ -528,11 +678,11 @@ const App: React.FC = () => {
         const errLower = errMessage.toLowerCase();
         
         if (errLower.includes("quota") || errLower.includes("exceeded") || errLower.includes("limit") || errLower.includes("recurso") || errLower.includes("cota") || errLower.includes("excedida")) {
-          setNotification("A cota gratuita diária de acessos ao banco de dados do Firebase (Firestore Spark Plan - 50.000 leituras/dia) foi esgotada hoje. O portal voltará a funcionar automaticamente amanhã à noite, ou você pode reativá-lo instantaneamente ativando o plano gratuito flexível Blaze no Console do Firebase.");
+          setNotification("A cota gratuita diária de acessos ao banco de dados do Firebase (Firestore Spark Plan - 50.000 leituras/dia) foi esgotada hoje. O portal voltará a funcionar automaticamente amanhã à noite. Ative o plano gratuito flexível Blaze no Console do Firebase ou clique abaixo em 'Ativar Modo de Contingência (Local)' para entrar de imediato.");
         } else if (errLower.includes("permission") || errLower.includes("permissão") || errLower.includes("permission-denied")) {
-          setNotification("Erro de acesso/permissão ao banco de dados. Por favor, tente reiniciar seu navegador ou atualizar a página.");
+          setNotification("Erro de acesso/permissão ao banco de dados (" + errMessage + "). Por favor, tente reiniciar seu navegador ou atualizar a página.");
         } else {
-          setNotification("Erro ao conectar com o banco de dados. Tente novamente.");
+          setNotification("Erro ao conectar com o banco de dados (" + errMessage + "). Tente novamente ou use o Modo de Contingência (Local) de emergência abaixo.");
         }
       } finally {
         setIsAuthLoading(false);
@@ -592,15 +742,31 @@ const App: React.FC = () => {
     };
 
     try {
-      await setDoc(doc(db, 'collaborators', cleanEmail), newUser);
-      setUser({
-        email: cleanEmail,
-        name: `${newUser.firstName} ${newUser.lastName}`,
-        role: newUser.role,
-        areaBase: newUser.areaBase
-      });
-      setActiveTab('mural');
-      setNotification(`Cadastro realizado com sucesso! Bem-vindo, ${newUser.firstName}!`);
+      if (useLocalStorageMode) {
+        const rawCollab = localStorage.getItem('eclin_collaborators');
+        const collaborators = rawCollab ? JSON.parse(rawCollab) : {};
+        collaborators[cleanEmail] = newUser;
+        localStorage.setItem('eclin_collaborators', JSON.stringify(collaborators));
+        
+        setUser({
+          email: cleanEmail,
+          name: `${newUser.firstName} ${newUser.lastName}`,
+          role: newUser.role,
+          areaBase: newUser.areaBase
+        });
+        setActiveTab('mural');
+        setNotification(`Cadastro realizado com sucesso localmente! Bem-vindo, ${newUser.firstName}!`);
+      } else {
+        await setDoc(doc(db, 'collaborators', cleanEmail), newUser);
+        setUser({
+          email: cleanEmail,
+          name: `${newUser.firstName} ${newUser.lastName}`,
+          role: newUser.role,
+          areaBase: newUser.areaBase
+        });
+        setActiveTab('mural');
+        setNotification(`Cadastro realizado com sucesso! Bem-vindo, ${newUser.firstName}!`);
+      }
       // Reset registration states
       setEmail('');
       setPassword('');
@@ -609,9 +775,10 @@ const App: React.FC = () => {
       setRegPassword('');
       setRegConfirmPassword('');
       setLoginStep('email');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao registrar colaborador:", error);
-      setNotification("Erro ao salvar cadastro. Verifique sua conexão.");
+      const errMessage = error instanceof Error ? error.message : String(error);
+      setNotification(`Erro ao salvar cadastro (${errMessage}). Verifique sua conexão.`);
     } finally {
       setIsAuthLoading(false);
     }
@@ -716,6 +883,79 @@ const App: React.FC = () => {
       setCustomDocVersion('1.0');
       setCustomEmissionDate(new Date().toISOString().split('T')[0]);
     };
+
+    if (useLocalStorageMode) {
+      if (type === 'docx' && isTooLarge) {
+        const id = Math.random().toString(36).substring(2, 9);
+        const newDoc: any = {
+          id,
+          title: customDocTitle || file.name,
+          type: type,
+          status: 'pending',
+          uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
+          uploaderEmail: user?.email || '',
+          uploaderName: user?.name || '',
+          uploaderArea: user?.areaBase || '',
+          uploadDate: new Date().toISOString().split('T')[0],
+          area: user?.areaBase || 'Qualidade',
+          docType: customDocType,
+          version: customDocVersion,
+          emissionDate: customEmissionDate,
+          expirationDate: expirationDate || '',
+          note: "Documento registrado por metadados devido ao tamanho."
+        };
+
+        const updatedDocs = [newDoc, ...documents];
+        saveDocumentsLocal(updatedDocs);
+        await logAction(user, 'DOC_UPLOAD', `Registrou os metadados (envio offline por tamanho) do documento local: "${newDoc.title}".`);
+        setNotification("O envio local de metadados foi registrado!");
+        resetUploadStates();
+        setIsUploading(false);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64Data = e.target?.result as string;
+        const id = Math.random().toString(36).substring(2, 9);
+        const newDoc: any = {
+          id,
+          title: customDocTitle || file.name,
+          type: type,
+          status: type === 'docx' ? 'pending' : 'published',
+          uploader: user ? `${user.name} (${user.areaBase || 'Eclin'})` : `Equipe ${CONFIG.brandName}`,
+          uploaderEmail: user?.email || '',
+          uploaderName: user?.name || '',
+          uploaderArea: user?.areaBase || '',
+          uploadDate: new Date().toISOString().split('T')[0],
+          area: type === 'pdf' ? selectedArea : (user?.areaBase || 'Qualidade'),
+          docType: customDocType,
+          version: customDocVersion,
+          emissionDate: customEmissionDate,
+          expirationDate: expirationDate || '',
+          fileData: base64Data
+        };
+
+        const updatedDocs = [newDoc, ...documents];
+        saveDocumentsLocal(updatedDocs);
+        await logAction(user, 'DOC_UPLOAD', `Enviou com sucesso o documento local "${newDoc.title}".`);
+        if (type === 'docx') {
+          setNotification("Sucesso! O documento foi submetido com sucesso localmente.");
+        } else {
+          setNotification(`Sucesso! Arquivo "${customDocTitle || file.name}" enviado localmente.`);
+        }
+        resetUploadStates();
+        setIsUploading(false);
+      };
+
+      reader.onerror = () => {
+        setNotification("Erro local ao ler o arquivo. Tente novamente.");
+        setIsUploading(false);
+      };
+
+      reader.readAsDataURL(file);
+      return;
+    }
 
     if (type === 'docx' && isTooLarge) {
       // Inserção direta de metadados para arquivos grandes para evitar o popup de email fallback
@@ -834,6 +1074,31 @@ const App: React.FC = () => {
       image: newPostImage || undefined
     };
 
+    if (useLocalStorageMode) {
+      const id = editingPost ? editingPost.id : Math.random().toString(36).substring(2, 9);
+      const postWithId = { id, ...postData };
+      let updatedList = [...muralPosts];
+      
+      if (editingPost) {
+        updatedList = updatedList.map(p => p.id === editingPost.id ? postWithId : p);
+        saveMuralPostsLocal(updatedList);
+        await logAction(user, 'MURAL_UPDATE', `Atualizou o post do mural localmente: "${postData.title}".`);
+        setNotification("Post atualizado com sucesso localmente!");
+      } else {
+        updatedList = [postWithId, ...updatedList];
+        saveMuralPostsLocal(updatedList);
+        await logAction(user, 'MURAL_CREATE', `Criou o post do mural localmente: "${postData.title}".`);
+        setNotification("Novo post adicionado ao Mural localmente!");
+      }
+
+      setNewPostTitle('');
+      setNewPostContent('');
+      setNewPostImage('');
+      setIsAddingPost(false);
+      setEditingPost(null);
+      return;
+    }
+
     try {
       if (editingPost) {
         await updateDoc(doc(db, 'mural_posts', editingPost.id), postData);
@@ -878,6 +1143,16 @@ const App: React.FC = () => {
       setNotification("Apenas administradores podem excluir posts.");
       return;
     }
+    if (useLocalStorageMode) {
+      if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
+        const postItem = muralPosts.find(p => p.id === id);
+        const updatedList = muralPosts.filter(p => p.id !== id);
+        saveMuralPostsLocal(updatedList);
+        await logAction(user, 'MURAL_DELETE', `Excluiu o post do mural localmente: "${postItem ? postItem.title : id}".`);
+        setNotification("Post removido com sucesso localmente.");
+      }
+      return;
+    }
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
       try {
         const postItem = muralPosts.find(p => p.id === id);
@@ -889,10 +1164,16 @@ const App: React.FC = () => {
         setNotification("Erro ao excluir post. Verifique suas permissões.");
       }
     }
-  }, [user, muralPosts]);
+  }, [user, muralPosts, useLocalStorageMode]);
 
   const handleResetMural = async () => {
     if (window.confirm("Deseja redefinir o mural com os posts padrão do Portal ECLIN? Isso apagará os avisos atuais e restaurará os padrões originais.")) {
+      if (useLocalStorageMode) {
+        saveMuralPostsLocal(CONFIG.muralPosts);
+        await logAction(user, 'MURAL_RESET', 'Restaurou o mural de recados e avisos para as configurações padrão ECLIN localmente.');
+        setNotification("Mural do portal redefinido com sucesso localmente!");
+        return;
+      }
       try {
         // Exclui todos os posts atuais do mural
         for (const post of muralPosts) {
@@ -934,6 +1215,13 @@ const App: React.FC = () => {
       : `Deseja realmente apagar o seu envio de teste "${docItem.title}"?`;
 
     if (window.confirm(confirmMsg)) {
+      if (useLocalStorageMode) {
+        const updatedList = documents.filter(d => d.id !== id);
+        saveDocumentsLocal(updatedList);
+        await logAction(user, 'DOC_DELETE', `Excluiu permanentemente o documento local: "${docItem.title}".`);
+        setNotification("Documento removido localmente com sucesso.");
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'documents', id));
         await logAction(user, 'DOC_DELETE', `Excluiu permanentemente o documento: "${docItem.title}" (${docItem.docType}, v${docItem.version}, Área: ${docItem.area}).`);
@@ -943,7 +1231,7 @@ const App: React.FC = () => {
         setNotification("Erro ao excluir documento do banco de dados.");
       }
     }
-  }, [documents, user]);
+  }, [documents, user, useLocalStorageMode]);
 
   const handleEditDocument = useCallback((id: string) => {
     if (user?.role !== 'admin') {
@@ -966,6 +1254,29 @@ const App: React.FC = () => {
   const handleSaveDocEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDocId) return;
+
+    if (useLocalStorageMode) {
+      const updatedList = documents.map(d => {
+        if (d.id === editingDocId) {
+          return {
+            ...d,
+            title: editDocTitle,
+            area: editDocArea,
+            docType: editDocType,
+            version: editDocVersion,
+            emissionDate: editDocEmissionDate,
+            expirationDate: editDocExpirationDate
+          };
+        }
+        return d;
+      });
+      saveDocumentsLocal(updatedList);
+      await logAction(user, 'DOC_EDIT', `Editou o documento local: "${editDocTitle}".`);
+      setNotification("Documento atualizado localmente com sucesso!");
+      setIsEditingDoc(false);
+      setEditingDocId(null);
+      return;
+    }
 
     try {
       await updateDoc(doc(db, 'documents', editingDocId), {
@@ -1035,6 +1346,24 @@ const App: React.FC = () => {
     const docItem = documents.find(d => d.id === id);
     if (!docItem) return;
 
+    if (useLocalStorageMode) {
+      const finalComment = comment.trim() || "Documento aprovado na etapa de revisão da Qualidade.";
+      const updatedList = documents.map(d => {
+        if (d.id === id) {
+          return {
+            ...d,
+            status: 'approved' as const,
+            note: finalComment
+          };
+        }
+        return d;
+      });
+      saveDocumentsLocal(updatedList);
+      await logAction(user, 'DOC_APPROVE', `Aprovou o documento local "${docItem.title}" na etapa de revisão da Qualidade.`);
+      setNotification("Sucesso! Documento aprovado localmente.");
+      return;
+    }
+
     try {
       const finalComment = comment.trim() || "Documento aprovado na etapa de revisão da Qualidade.";
       await updateDoc(doc(db, 'documents', id), {
@@ -1048,7 +1377,7 @@ const App: React.FC = () => {
       handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
       setNotification("Erro ao atualizar aprovação do documento.");
     }
-  }, [documents, user]);
+  }, [documents, user, useLocalStorageMode]);
 
   const handleDeclineDocument = useCallback(async (id: string, comment: string) => {
     if (user?.role !== 'admin') {
@@ -1057,6 +1386,24 @@ const App: React.FC = () => {
     }
     const docItem = documents.find(d => d.id === id);
     if (!docItem) return;
+
+    if (useLocalStorageMode) {
+      const finalComment = comment.trim() || "Documento precisa de ajustes de formatação/conteúdo.";
+      const updatedList = documents.map(d => {
+        if (d.id === id) {
+          return {
+            ...d,
+            status: 'rejected' as const,
+            note: finalComment
+          };
+        }
+        return d;
+      });
+      saveDocumentsLocal(updatedList);
+      await logAction(user, 'DOC_REJECT', `Recusou o documento local "${docItem.title}". Decisão: ${finalComment}.`);
+      setNotification("Sucesso! O feedback e recusa foram registrados com sucesso localmente.");
+      return;
+    }
 
     try {
       const finalComment = comment.trim() || "Documento precisa de ajustes de formatação/conteúdo.";
@@ -1071,7 +1418,7 @@ const App: React.FC = () => {
       handleFirestoreError(error, OperationType.UPDATE, `documents/${id}`);
       setNotification("Erro ao salvar recusa do documento.");
     }
-  }, [documents, user]);
+  }, [documents, user, useLocalStorageMode]);
 
   const getExpirationAlert = useCallback((dateStr?: string) => {
     if (!dateStr) return null;
@@ -1120,6 +1467,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-brand-light/40 text-slate-900 font-sans">
+      {useLocalStorageMode && (
+        <div className="bg-amber-500 text-white py-2.5 px-4 text-center text-[10px] font-black uppercase tracking-widest relative z-50 flex items-center justify-center gap-2 shadow-sm border-b border-amber-600">
+          <i className="fas fa-exclamation-triangle animate-pulse text-white"></i>
+          <span>Modo de Contingência Ativo: Operando de forma 100% autônoma e imediata com armazenamento local neste navegador.</span>
+        </div>
+      )}
+
       {notification && (
         <div className="fixed top-6 right-6 z-50">
           <div className="bg-brand-primary text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3 border-l-4 border-brand-secondary">
@@ -2248,6 +2602,38 @@ const App: React.FC = () => {
                     </div>
                   </form>
                 )}
+
+                <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
+                    Está com lentidão ou erro de cota no banco Firebase?
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Ative o modo de contingência local para desviar de problemas de conexão e acessar / usar o portal de imediato.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMode = !useLocalStorageMode;
+                      localStorage.setItem('eclin_contingency_mode', nextMode.toString());
+                      setUseLocalStorageMode(nextMode);
+                      setNotification(nextMode 
+                        ? "Portal chaveado para operação local em contingência! Recarregando..." 
+                        : "Modo de sincronização com o banco reativado! Recarregando..."
+                      );
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 1500);
+                    }}
+                    className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 border ${
+                      useLocalStorageMode 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                        : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <i className={`fas ${useLocalStorageMode ? 'fa-check' : 'fa-exclamation-triangle'} animate-pulse`}></i>
+                    {useLocalStorageMode ? 'DESATIVAR TENDO ACESSO AO BANCO' : 'ATIVAR MODO DE CONTINGÊNCIA LOCAL'}
+                  </button>
+                </div>
               </div>
             )}
 
