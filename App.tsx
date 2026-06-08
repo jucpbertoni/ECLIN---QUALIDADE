@@ -19,7 +19,8 @@ import {
   query, 
   orderBy,
   setDoc,
-  getDocFromServer
+  getDocFromServer,
+  getDoc
 } from 'firebase/firestore';
 
 enum OperationType {
@@ -58,6 +59,20 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
     auth: auth.currentUser ? 'Authenticated' : 'Not Authenticated'
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+};
+
+const logAction = async (currentUser: User | null, action: string, details: string) => {
+  try {
+    await addDoc(collection(db, 'quality_logs'), {
+      timestamp: new Date().toISOString(),
+      userEmail: currentUser?.email || 'anonimo@eclin.com.br',
+      userName: currentUser ? `${currentUser.name} (${currentUser.areaBase || 'Eclin'})` : 'Visitante Anônimo',
+      action,
+      details
+    });
+  } catch (err) {
+    console.warn("Erro ao registrar log de auditoria:", err);
+  }
 };
 
 const ADMIN_EMAILS = [
@@ -326,6 +341,7 @@ const App: React.FC = () => {
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [muralHeaderError, setMuralHeaderError] = useState(false);
   const [reviewStatusFilter, setReviewStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   // Ensure user role is correct if admin list changes or on initial load
   useEffect(() => {
@@ -345,6 +361,27 @@ const App: React.FC = () => {
   
   const hasSeededMural = useRef(false);
   const hasSeededDocs = useRef(false);
+
+  // Sync quality_logs dynamically when authorized user is active
+  useEffect(() => {
+    const isUserAdmin = user && checkIsAdmin(user.email);
+    const isQualidade = user && (user.email === 'qualidade@eclin.com.br' || user.email === 'juliana.engbio@gmail.com');
+    
+    if (!isUserAdmin && !isQualidade) {
+      setAuditLogs([]);
+      return;
+    }
+
+    const logsQuery = query(collection(db, 'quality_logs'), orderBy('timestamp', 'desc'));
+    const unsub = onSnapshot(logsQuery, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAuditLogs(logs);
+    }, (error) => {
+      console.warn("Sem permissão para ler logs:", error);
+    });
+
+    return () => unsub();
+  }, [user]);
 
   // Firebase Real-time Sync
   useEffect(() => {
@@ -450,7 +487,15 @@ const App: React.FC = () => {
       setIsAuthLoading(true);
       try {
         const docRef = doc(db, 'collaborators', cleanEmail);
-        const docSnap = await getDocFromServer(docRef);
+        let docSnap;
+        try {
+          // Tenta carregar usando getDoc normal (que aproveita cache local e conexões automáticas)
+          docSnap = await getDoc(docRef);
+        } catch (getDocErr) {
+          console.warn("getDoc falhou, tentando do servidor diretamente:", getDocErr);
+          // Se falhar, tenta forçar busca direto do servidor
+          docSnap = await getDocFromServer(docRef);
+        }
         
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -672,6 +717,7 @@ const App: React.FC = () => {
 
       try {
         await addDoc(collection(db, 'documents'), newDoc);
+        await logAction(user, 'DOC_UPLOAD', `Registrou os metadados (envio offline por tamanho) do documento: "${newDoc.title}" (${newDoc.docType}, v${newDoc.version}, Área: ${newDoc.area}).`);
         setNotification("O envio foi registrado! Como o arquivo é muito grande (máximo 750KB), envie o arquivo à parte por e-mail para qualidade@eclin.com.br.");
         resetUploadStates();
       } catch (error: any) {
@@ -706,6 +752,7 @@ const App: React.FC = () => {
 
       try {
         await addDoc(collection(db, 'documents'), newDoc);
+        await logAction(user, 'DOC_UPLOAD', `Enviou com sucesso o documento "${newDoc.title}" (${newDoc.docType}, v${newDoc.version}, Área: ${newDoc.area}).`);
         if (type === 'docx') {
           setNotification("Sucesso! O documento foi submetido com sucesso para a fila de revisão da Qualidade.");
         } else {
@@ -722,6 +769,7 @@ const App: React.FC = () => {
           delete metadataDoc.fileData;
           
           await addDoc(collection(db, 'documents'), metadataDoc);
+          await logAction(user, 'DOC_UPLOAD', `Enviou metadados (reserva por anexo pesado) de "${metadataDoc.title}" (${metadataDoc.docType}, v${metadataDoc.version}, Área: ${metadataDoc.area}).`);
           if (type === 'docx') {
             setNotification("Sucesso! Metadados registrados com sucesso na fila de revisão.");
           } else {
@@ -768,9 +816,11 @@ const App: React.FC = () => {
     try {
       if (editingPost) {
         await updateDoc(doc(db, 'mural_posts', editingPost.id), postData);
+        await logAction(user, 'MURAL_UPDATE', `Atualizou o post do mural: "${postData.title}".`);
         setNotification("Post atualizado com sucesso!");
       } else {
         await addDoc(collection(db, 'mural_posts'), postData);
+        await logAction(user, 'MURAL_CREATE', `Criou o post do mural: "${postData.title}".`);
         setNotification("Novo post adicionado ao Mural!");
       }
       
@@ -809,14 +859,39 @@ const App: React.FC = () => {
     }
     if (window.confirm("Tem certeza que deseja excluir este post do mural?")) {
       try {
+        const postItem = muralPosts.find(p => p.id === id);
         await deleteDoc(doc(db, 'mural_posts', id));
+        await logAction(user, 'MURAL_DELETE', `Excluiu o post do mural: "${postItem ? postItem.title : id}".`);
         setNotification("Post removido com sucesso.");
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `mural_posts/${id}`);
         setNotification("Erro ao excluir post. Verifique suas permissões.");
       }
     }
-  }, [user]);
+  }, [user, muralPosts]);
+
+  const handleResetMural = async () => {
+    if (window.confirm("Deseja redefinir o mural com os posts padrão do Portal ECLIN? Isso apagará os avisos atuais e restaurará os padrões originais.")) {
+      try {
+        // Exclui todos os posts atuais do mural
+        for (const post of muralPosts) {
+          await deleteDoc(doc(db, 'mural_posts', post.id));
+        }
+        
+        // Insere novamente os posts do CONFIG.muralPosts
+        for (const post of CONFIG.muralPosts) {
+          const { id, ...postFields } = post;
+          await addDoc(collection(db, 'mural_posts'), postFields);
+        }
+        
+        await logAction(user, 'MURAL_RESET', 'Restaurou o mural de recados e avisos para as configurações padrão ECLIN.');
+        setNotification("Mural do portal redefinido com sucesso!");
+      } catch (err) {
+        console.error("Erro ao redefinir mural:", err);
+        setNotification("Erro ao redefinir o mural de recados.");
+      }
+    }
+  };
 
   const handleDeleteDocument = useCallback(async (id: string) => {
     const docItem = documents.find(d => d.id === id);
@@ -840,6 +915,7 @@ const App: React.FC = () => {
     if (window.confirm(confirmMsg)) {
       try {
         await deleteDoc(doc(db, 'documents', id));
+        await logAction(user, 'DOC_DELETE', `Excluiu permanentemente o documento: "${docItem.title}" (${docItem.docType}, v${docItem.version}, Área: ${docItem.area}).`);
         setNotification("Documento removido do portal com sucesso.");
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `documents/${id}`);
@@ -879,6 +955,7 @@ const App: React.FC = () => {
         emissionDate: editDocEmissionDate,
         expirationDate: editDocExpirationDate
       });
+      await logAction(user, 'DOC_EDIT', `Editou as informações do documento: "${editDocTitle}" (${editDocType}, v${editDocVersion}, Área: ${editDocArea}).`);
       setNotification("Documento atualizado com sucesso!");
       setIsEditingDoc(false);
       setEditingDocId(null);
@@ -943,6 +1020,7 @@ const App: React.FC = () => {
         status: 'approved',
         note: finalComment
       });
+      await logAction(user, 'DOC_APPROVE', `Aprovou o documento "${docItem.title}" na etapa de revisão da Qualidade.`);
 
       setNotification("Sucesso! Documento aprovado na etapa de revisão da Qualidade.");
     } catch (error) {
@@ -965,6 +1043,7 @@ const App: React.FC = () => {
         status: 'rejected',
         note: finalComment
       });
+      await logAction(user, 'DOC_REJECT', `Recusou o documento "${docItem.title}". Decisão: ${finalComment}.`);
 
       setNotification("Sucesso! O feedback e parecer de recusa foram registrados com sucesso.");
     } catch (error) {
@@ -1078,7 +1157,7 @@ const App: React.FC = () => {
                     </button>
                   </>
                 )}
-                {user?.email === 'qualidade@eclin.com.br' && (
+                {(user?.email === 'qualidade@eclin.com.br' || user?.email === 'juliana.engbio@gmail.com') && (
                   <>
                     <div className="w-[1px] h-4 bg-slate-200 mx-2 hidden md:block"></div>
                     <button 
@@ -1148,22 +1227,31 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   {user?.role === 'admin' && (
-                    <button 
-                      onClick={() => {
-                        if (isAddingPost) {
-                          setIsAddingPost(false);
-                          setEditingPost(null);
-                          setNewPostTitle('');
-                          setNewPostContent('');
-                          setNewPostImage('');
-                        } else {
-                          setIsAddingPost(true);
-                        }
-                      }}
-                      className="bg-brand-dark text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary transition-all"
-                    >
-                      {isAddingPost ? 'Cancelar' : 'Novo Post'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleResetMural}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                        title="Restaurar posts padrões do portal"
+                      >
+                        Restaurar Mural
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (isAddingPost) {
+                            setIsAddingPost(false);
+                            setEditingPost(null);
+                            setNewPostTitle('');
+                            setNewPostContent('');
+                            setNewPostImage('');
+                          } else {
+                            setIsAddingPost(true);
+                          }
+                        }}
+                        className="bg-brand-dark text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary transition-all"
+                      >
+                        {isAddingPost ? 'Cancelar' : 'Novo Post'}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1742,7 +1830,7 @@ const App: React.FC = () => {
               );
             })()}
 
-            {activeTab === 'reports' && user?.email === 'qualidade@eclin.com.br' && (
+            {activeTab === 'reports' && (user?.email === 'qualidade@eclin.com.br' || user?.email === 'juliana.engbio@gmail.com') && (
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 relative overflow-hidden font-sans">
                 <div className="absolute top-0 right-0 w-32 h-32 brand-gradient opacity-10 rounded-bl-full"></div>
                 <div className="flex items-center justify-between relative z-10 flex-col sm:flex-row gap-4">
@@ -1854,12 +1942,79 @@ const App: React.FC = () => {
                     </table>
                   </div>
                 </div>
+
+                {/* Log de Histórico e Auditoria */}
+                <div className="space-y-4 pt-8 border-t border-slate-100 font-sans">
+                  <div className="flex items-center justify-between gap-4 flex-col sm:flex-row">
+                    <h3 className="font-black text-xs text-slate-800 uppercase tracking-widest flex items-center gap-2 self-start sm:self-center">
+                      <i className="fas fa-history text-brand-primary"></i> Log de Histórico e Auditoria Geral
+                    </h3>
+                    <span className="text-[9px] px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-full font-black uppercase tracking-wider self-start sm:self-center">
+                      🔐 Registro Imutável em Nuvem (Firestore)
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase leading-relaxed tracking-wider text-left">
+                    Histórico cronológico de atividades críticas (Inclusões, Exclusões, Homologações, Alterações de Metas e Eventos de Restauração).
+                  </p>
+                  
+                  <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-6 max-h-[360px] overflow-y-auto space-y-4 no-scrollbar">
+                    {auditLogs.length === 0 ? (
+                      <div className="text-center py-10 text-slate-400 font-bold text-xs uppercase tracking-wider">
+                        Nenhuma atividade registrada no log de auditoria até o momento.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {auditLogs.map((log) => {
+                          const dateObj = new Date(log.timestamp);
+                          const dateStr = isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleString('pt-BR');
+                          
+                          let badgeStyle = "bg-slate-200 text-slate-700";
+                          if (log.action?.includes("DELETE") || log.action?.includes("REJECT")) {
+                            badgeStyle = "bg-rose-100 text-rose-700 border border-rose-200";
+                          } else if (log.action?.includes("CREATE") || log.action?.includes("APPROVE") || log.action?.includes("UPLOAD")) {
+                            badgeStyle = "bg-emerald-100 text-emerald-700 border border-emerald-200";
+                          } else if (log.action?.includes("RESTORE") || log.action?.includes("RESET")) {
+                            badgeStyle = "bg-amber-100 text-amber-700 border border-amber-200";
+                          } else if (log.action?.includes("EDIT") || log.action?.includes("UPDATE")) {
+                            badgeStyle = "bg-blue-100 text-blue-700 border border-blue-200";
+                          }
+
+                          return (
+                            <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all text-left flex flex-col md:flex-row md:items-center justify-between gap-3 group">
+                              <div className="space-y-1 min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${badgeStyle}`}>
+                                    {log.action}
+                                  </span>
+                                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
+                                    {log.userName}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-slate-400 font-mono">
+                                    &lt;{log.userEmail}&gt;
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-slate-600 leading-relaxed font-sans">{log.details}</p>
+                              </div>
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap self-start md:self-center font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100 group-hover:bg-slate-100 transition-colors">
+                                {dateStr}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
           <div className="lg:col-span-4 space-y-10">
-            <Countdown isAdmin={user?.role === 'admin'} />
+            <Countdown 
+              isAdmin={user?.role === 'admin'} 
+              user={user}
+              onLogAction={(action, details) => logAction(user, action, details)}
+            />
 
             {!user && (
               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">

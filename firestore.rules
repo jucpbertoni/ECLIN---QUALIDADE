@@ -18,13 +18,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function hasEmail(email) {
+      return isAuthenticated() && 
+             'token' in request.auth && 
+             'email' in request.auth.token && 
+             request.auth.token.email == email;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.email == "juliana.engbio@gmail.com" ||
-        request.auth.token.email == "rafael.dias@eclin.eng.br" ||
-        request.auth.token.email == "qualidade@eclin.com.br" ||
-        request.auth.token.email == "marketing@grupoeclin.com.br"
-      );
+      return isAuthenticated() && 
+             'token' in request.auth && 
+             'email' in request.auth.token && (
+               request.auth.token.email == "juliana.engbio@gmail.com" ||
+               request.auth.token.email == "rafael.dias@eclin.eng.br" ||
+               request.auth.token.email == "qualidade@eclin.com.br" ||
+               request.auth.token.email == "marketing@grupoeclin.com.br"
+             );
     }
 
     function isValidMuralPost(data) {
@@ -63,6 +72,12 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read, write: if true;
+    }
+
+    match /quality_logs/{logId} {
+      allow read: if isAdmin() || hasEmail("juliana.engbio@gmail.com") || hasEmail("qualidade@eclin.com.br");
+      allow create: if true;
+      allow update, delete: if false; // Os logs de auditoria são imutáveis e protegidos contra remoção/edição
     }
     
     // Default deny

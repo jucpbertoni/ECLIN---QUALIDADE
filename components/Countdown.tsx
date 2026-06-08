@@ -11,9 +11,11 @@ interface TimeLeft {
 
 interface CountdownProps {
   isAdmin?: boolean;
+  user?: any;
+  onLogAction?: (action: string, details: string) => void;
 }
 
-const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
+const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogAction }) => {
   const [objective, setObjective] = useState('Rumo à ONA');
   const [subtitle, setSubtitle] = useState('Certificação 2026');
   const [targetDateStr, setTargetDateStr] = useState('2026-06-30T00:00:00');
@@ -38,11 +40,11 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.objective) setObjective(data.objective);
-        if (data.subtitle) setSubtitle(data.subtitle);
-        if (data.targetDate) setTargetDateStr(data.targetDate);
-        if (data.impactPhrase) setImpactPhrase(data.impactPhrase);
-        if (data.completedMessage) setCompletedMessage(data.completedMessage);
+        if (data.objective !== undefined) setObjective(data.objective);
+        if (data.subtitle !== undefined) setSubtitle(data.subtitle);
+        if (data.targetDate !== undefined) setTargetDateStr(data.targetDate);
+        if (data.impactPhrase !== undefined) setImpactPhrase(data.impactPhrase);
+        if (data.completedMessage !== undefined) setCompletedMessage(data.completedMessage);
       } else {
         // Se as configurações não existirem no Firestore, recria automaticamente com os valores padrão
         try {
@@ -113,6 +115,30 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
     setIsEditing(true);
   };
 
+  const handleRestoreDefaults = async () => {
+    if (window.confirm("Deseja redefinir o contador e a meta para o padrão do Portal ECLIN?")) {
+      try {
+        const docRef = doc(db, 'settings', 'countdown');
+        await setDoc(docRef, {
+          objective: 'Rumo à ONA',
+          subtitle: 'Certificação 2026',
+          targetDate: '2026-06-30T00:00:00',
+          impactPhrase: '"A qualidade é a nossa prioridade absoluta."',
+          completedMessage: 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
+        });
+        if (onLogAction) {
+          onLogAction('TIMER_RESTORE', 'Restaurou as configurações padrões do contador da meta (Rumo à ONA 2026).');
+        }
+        setIsEditing(false);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 4000);
+      } catch (err) {
+        console.error("Erro ao redefinir padrões do timer:", err);
+        alert("Erro ao redefinir as configurações padrões.");
+      }
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editObjective.trim()) {
@@ -132,6 +158,9 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
         impactPhrase: editImpactPhrase.trim(),
         completedMessage: editCompletedMessage.trim() || 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
       });
+      if (onLogAction) {
+        onLogAction('TIMER_EDIT', `Alterou as configurações da meta para: "${editObjective.trim()}" com data alvo definida como ${editTargetDate}.`);
+      }
       setIsEditing(false);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 4000);
@@ -218,20 +247,30 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false }) => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-between gap-2 pt-2">
             <button 
               type="button" 
-              onClick={() => setIsEditing(false)}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition-all"
+              onClick={handleRestoreDefaults}
+              className="px-3 py-2 bg-rose-600/25 hover:bg-rose-600/40 text-rose-200 border border-rose-500/30 font-extrabold uppercase text-[9px] tracking-wider rounded-xl transition-all"
+              title="Restaurar valores de certificação padrão da ECLIN"
             >
-              Cancelar
+              Restaurar Padrões
             </button>
-            <button 
-              type="submit" 
-              className="px-4 py-2 bg-amber-400 hover:bg-yellow-400 text-brand-dark font-black uppercase text-[10px] tracking-wider rounded-xl transition-all shadow-md shadow-amber-400/20"
-            >
-              Salvar Alterações
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                type="button" 
+                onClick={() => setIsEditing(false)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-amber-400 hover:bg-yellow-400 text-brand-dark font-black uppercase text-[10px] tracking-wider rounded-xl transition-all shadow-md shadow-amber-400/20"
+              >
+                Salvar Alterações
+              </button>
+            </div>
           </div>
         </form>
       </div>
