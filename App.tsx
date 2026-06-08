@@ -337,7 +337,9 @@ const App: React.FC = () => {
   const [expirationDate, setExpirationDate] = useState('');
 
   // Define Contingency (Local Storage) Mode to bypass Firebase quota or connection failures
-  const [useLocalStorageMode, setUseLocalStorageMode] = useState<boolean>(false);
+  const [useLocalStorageMode, setUseLocalStorageMode] = useState<boolean>(() => {
+    return localStorage.getItem('eclin_contingency_mode') === 'true';
+  });
 
   const saveMuralPostsLocal = (posts: MuralPost[]) => {
     localStorage.setItem('eclin_mural_posts', JSON.stringify(posts));
@@ -2386,6 +2388,7 @@ const App: React.FC = () => {
             <Countdown 
               isAdmin={user?.role === 'admin'} 
               user={user}
+              useLocalStorageMode={useLocalStorageMode}
               onLogAction={(action, details) => logAction(user, action, details)}
             />
 

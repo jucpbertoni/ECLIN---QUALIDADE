@@ -13,9 +13,10 @@ interface CountdownProps {
   isAdmin?: boolean;
   user?: any;
   onLogAction?: (action: string, details: string) => void;
+  useLocalStorageMode?: boolean;
 }
 
-const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogAction }) => {
+const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogAction, useLocalStorageMode = false }) => {
   const [objective, setObjective] = useState('Rumo à ONA');
   const [subtitle, setSubtitle] = useState('Certificação 2026');
   const [targetDateStr, setTargetDateStr] = useState('2026-06-30T00:00:00');
@@ -34,8 +35,45 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogActio
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Sync with Firestore in real-time
+  // Sync with Firestore or LocalStorage in real-time
   useEffect(() => {
+    if (useLocalStorageMode) {
+      const loadLocalSettings = () => {
+        try {
+          const raw = localStorage.getItem('eclin_countdown_settings');
+          if (raw) {
+            const data = JSON.parse(raw);
+            if (data.objective !== undefined) setObjective(data.objective);
+            if (data.subtitle !== undefined) setSubtitle(data.subtitle);
+            if (data.targetDate !== undefined) setTargetDateStr(data.targetDate);
+            if (data.impactPhrase !== undefined) setImpactPhrase(data.impactPhrase);
+            if (data.completedMessage !== undefined) setCompletedMessage(data.completedMessage);
+          } else {
+            const defaultSettings = {
+              objective: 'Rumo à ONA',
+              subtitle: 'Certificação 2026',
+              targetDate: '2026-06-30T00:00:00',
+              impactPhrase: '"A qualidade é a nossa prioridade absoluta."',
+              completedMessage: 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
+            };
+            localStorage.setItem('eclin_countdown_settings', JSON.stringify(defaultSettings));
+          }
+        } catch (e) {
+          console.error("Erro ao carregar configurações locais do contador:", e);
+        }
+      };
+
+      loadLocalSettings();
+
+      const handleStorage = (e: StorageEvent) => {
+        if (e.key === 'eclin_countdown_settings') {
+          loadLocalSettings();
+        }
+      };
+      window.addEventListener('storage', handleStorage);
+      return () => window.removeEventListener('storage', handleStorage);
+    }
+
     const docRef = doc(db, 'settings', 'countdown');
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -63,7 +101,7 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogActio
       console.error("Erro ao escutar configurações:", error);
     });
     return () => unsub();
-  }, []);
+  }, [useLocalStorageMode]);
 
   // Update timer every second
   useEffect(() => {
@@ -117,15 +155,39 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogActio
 
   const handleRestoreDefaults = async () => {
     if (window.confirm("Deseja redefinir o contador e a meta para o padrão do Portal ECLIN?")) {
+      const defaultSettings = {
+        objective: 'Rumo à ONA',
+        subtitle: 'Certificação 2026',
+        targetDate: '2026-06-30T00:00:00',
+        impactPhrase: '"A qualidade é a nossa prioridade absoluta."',
+        completedMessage: 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
+      };
+
+      if (useLocalStorageMode) {
+        try {
+          localStorage.setItem('eclin_countdown_settings', JSON.stringify(defaultSettings));
+          setObjective(defaultSettings.objective);
+          setSubtitle(defaultSettings.subtitle);
+          setTargetDateStr(defaultSettings.targetDate);
+          setImpactPhrase(defaultSettings.impactPhrase);
+          setCompletedMessage(defaultSettings.completedMessage);
+
+          if (onLogAction) {
+            onLogAction('TIMER_RESTORE', 'Restaurou as configurações padrões do contador da meta (Rumo à ONA 2026) localmente.');
+          }
+          setIsEditing(false);
+          setShowSuccess(true);
+          setTimeout(() => setShowSuccess(false), 4000);
+        } catch (e) {
+          console.error("Erro ao redefinir padrões locais do timer:", e);
+          alert("Erro ao redefinir localmente.");
+        }
+        return;
+      }
+
       try {
         const docRef = doc(db, 'settings', 'countdown');
-        await setDoc(docRef, {
-          objective: 'Rumo à ONA',
-          subtitle: 'Certificação 2026',
-          targetDate: '2026-06-30T00:00:00',
-          impactPhrase: '"A qualidade é a nossa prioridade absoluta."',
-          completedMessage: 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
-        });
+        await setDoc(docRef, defaultSettings);
         if (onLogAction) {
           onLogAction('TIMER_RESTORE', 'Restaurou as configurações padrões do contador da meta (Rumo à ONA 2026).');
         }
@@ -149,15 +211,40 @@ const Countdown: React.FC<CountdownProps> = ({ isAdmin = false, user, onLogActio
       alert("Por favor, preencha a data almejada.");
       return;
     }
+
+    const newSettings = {
+      objective: editObjective.trim(),
+      subtitle: editSubtitle.trim(),
+      targetDate: editTargetDate,
+      impactPhrase: editImpactPhrase.trim(),
+      completedMessage: editCompletedMessage.trim() || 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
+    };
+
+    if (useLocalStorageMode) {
+      try {
+        localStorage.setItem('eclin_countdown_settings', JSON.stringify(newSettings));
+        setObjective(newSettings.objective);
+        setSubtitle(newSettings.subtitle);
+        setTargetDateStr(newSettings.targetDate);
+        setImpactPhrase(newSettings.impactPhrase);
+        setCompletedMessage(newSettings.completedMessage);
+
+        if (onLogAction) {
+          onLogAction('TIMER_EDIT', `Alterou as configurações da meta localmente para: "${editObjective.trim()}" com data alvo definida como ${editTargetDate}.`);
+        }
+        setIsEditing(false);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 4000);
+      } catch (e) {
+        console.error("Erro ao salvar configurações locais do timer:", e);
+        alert("Erro ao salvar localmente.");
+      }
+      return;
+    }
+
     try {
       const docRef = doc(db, 'settings', 'countdown');
-      await setDoc(docRef, {
-        objective: editObjective.trim(),
-        subtitle: editSubtitle.trim(),
-        targetDate: editTargetDate,
-        impactPhrase: editImpactPhrase.trim(),
-        completedMessage: editCompletedMessage.trim() || 'Chegamos ao dia planejado! Parabéns a toda a equipe de Qualidade e Colaboradores ECLIN pela excelência e engajamento.'
-      });
+      await setDoc(docRef, newSettings);
       if (onLogAction) {
         onLogAction('TIMER_EDIT', `Alterou as configurações da meta para: "${editObjective.trim()}" com data alvo definida como ${editTargetDate}.`);
       }
